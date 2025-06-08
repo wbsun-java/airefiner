@@ -1,0 +1,8 @@
+python-dotenv
+langchain
+langchain-openai
+langchain-groq
+langchain-google-genai
+langchain-anthropic
+# Add other specific langchain community or experimental packages if used
+# requests # If custom_models.py uses it directly and it's not a sub-dependency
