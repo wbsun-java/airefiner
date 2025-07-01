@@ -1,82 +1,470 @@
 # Import necessary standard LangChain classes
-from langchain_openai import ChatOpenAI
-from langchain_groq import ChatGroq
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 
-# --- Import Custom Classes ---
+# --- Import Official xAI Integration ---
 try:
-    # Import the specific custom class from within the 'models' package
-    from .custom_models import CustomGrokChatModel
+    from langchain_xai import ChatXAI
 except ImportError:
-    CustomGrokChatModel = None  # Handle if custom_models.py doesn't exist
+    ChatXAI = None
     print(
-        "WARNING: Could not import CustomGrokChatModel from models.custom_models.py. xAI models may not be available.")
+        "WARNING: Could not import ChatXAI from langchain-xai. Install with: pip install langchain-xai")
 
 # Import configuration details (API keys and arg names)
-# These are loaded in config.settings and imported into main.py,
-# then passed or accessed by model_loader.
-# For simplicity here, we'll import them directly from config.settings
-# assuming main.py has already ensured .env is loaded.
-from config.settings import API_KEYS, API_KEY_ARG_NAMES
+from config.settings import API_KEYS, API_KEY_ARG_NAMES, ENABLE_STRICT_MODEL_FILTERING, CUSTOM_EXCLUDE_KEYWORDS
 
-# --- MODEL_DEFINITIONS (with model_id_key) ---
-MODEL_DEFINITIONS = {
-    "openai": [
-        {"key": "openai/gpt-4.1-mini", "model_name": "gpt-4.1-mini", "class": ChatOpenAI, "args": {"temperature": 0.7},
-         "model_id_key": "model_name"},
-        {"key": "openai/gpt-4.5-preview-2025-02-27", "model_name": "gpt-4.5-preview-2025-02-27", "class": ChatOpenAI,
+# Import for dynamic model fetching
+from openai import OpenAI
+import time
+from typing import List, Dict, Any
+
+# Import for Google model fetching
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+    print("WARNING: google-generativeai not available for dynamic Google model fetching")
+
+# Import for Anthropic model fetching
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
+    print("WARNING: anthropic not available for dynamic Anthropic model fetching")
+
+# Import for Groq model fetching
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+    print("WARNING: groq not available for dynamic Groq model fetching")
+
+import requests
+
+# Global cache for model definitions
+_model_cache = {}
+_cache_timestamp = 0
+CACHE_DURATION = 3600  # 1 hour in seconds
+
+
+# --- Model Filtering Helper ---
+def is_text_model(model_id: str, provider: str = "") -> bool:
+    """
+    Comprehensive filtering to identify text-based models suitable for content refinement.
+    Excludes image, audio, video, embedding, and other non-text generation models.
+    Can be configured via settings.py
+    """
+    # Skip filtering if disabled in settings
+    if not ENABLE_STRICT_MODEL_FILTERING:
+        return True
+
+    model_id_lower = model_id.lower()
+
+    # Common non-text keywords across all providers
+    non_text_keywords = [
+        # Image/Vision models
+        'image', 'vision', 'dalle', 'clip', 'vit', 'img', 'visual', 'pic', 'photo',
+        # Audio models  
+        'audio', 'tts', 'whisper', 'speech', 'voice', 'sound', 'music',
+        # Video models
+        'video', 'vid', 'motion', 'animation',
+        # Embedding models
+        'embed', 'embedding', 'similarity', 'vector', 'retrieval',
+        # Code/Programming specific (not for text refinement)
+        'code', 'programming', 'dev', 'developer',
+        # Moderation/Safety models
+        'moderation', 'safety', 'content-filter', 'toxic',
+        # Fine-tuning/Training models
+        'fine-tune', 'finetune', 'training', 'custom',
+        # Other specialized models
+        'reasoning', 'math', 'science', 'research',
+        # Security/Guard models
+        'guard', 'guardian', 'safety-model',
+        # Legacy/Edit models
+        'edit', 'davinci-edit', 'curie-edit'
+    ]
+
+    # Add custom exclude keywords from settings
+    non_text_keywords.extend([keyword.lower() for keyword in CUSTOM_EXCLUDE_KEYWORDS])
+
+    # Provider-specific exclusions
+    provider_specific_exclusions = {
+        'openai': ['davinci-edit', 'curie-edit', 'babbage-edit', 'ada-edit'],
+        'google': ['bison', 'gecko', 'otter', 'unicorn'],  # Legacy/specialized Gemini models
+        'anthropic': [],  # Claude models are generally text-focused
+        'groq': ['whisper', 'distil-whisper'],  # Audio transcription models
+        'xai': []  # Grok models are generally text-focused
+    }
+
+    # Check common non-text keywords
+    for keyword in non_text_keywords:
+        if keyword in model_id_lower:
+            print(f"🔎 Filtering out non-text model ({keyword}): {model_id}")
+            return False
+
+    # Check provider-specific exclusions
+    if provider and provider in provider_specific_exclusions:
+        for excluded_model in provider_specific_exclusions[provider]:
+            if excluded_model.lower() in model_id_lower:
+                print(f"🔎 Filtering out provider-specific non-text model: {model_id}")
+                return False
+
+    # Additional heuristics for text model identification
+    # Models with these patterns are likely text models
+    text_indicators = [
+        'chat', 'gpt', 'claude', 'gemini', 'llama', 'mistral', 'qwen', 'deepseek', 'grok',
+        'text', 'language', 'conversation', 'instruct', 'assistant'
+    ]
+
+    has_text_indicator = any(indicator in model_id_lower for indicator in text_indicators)
+
+    if not has_text_indicator:
+        print(f"🔎 Model may not be text-focused (no text indicators): {model_id}")
+        return False
+
+    return True
+
+
+# --- Dynamic Model Fetching Functions ---
+def fetch_openai_models(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Dynamically fetch available OpenAI models from the API.
+    Filters for chat completion models only.
+    """
+    try:
+        client = OpenAI(api_key=api_key)
+        models = client.models.list()
+
+        chat_models = []
+        for model in models.data:
+            model_id = model.id
+            # Filter for GPT models that support chat completions AND are text-based
+            if is_text_model(model_id, 'openai') and any(
+                    prefix in model_id.lower() for prefix in ['gpt-4', 'gpt-3.5', 'o1']):
+                chat_models.append({
+                    "key": f"openai/{model_id}",
+                    "model_name": model_id,
+                    "class": ChatOpenAI,
+                    "args": {"temperature": 0.7},
+                    "model_id_key": "model_name"
+                })
+
+        print(f"✅ Fetched {len(chat_models)} OpenAI chat models dynamically")
+        return chat_models
+
+    except Exception as e:
+        print(f"❌ Failed to fetch OpenAI models: {e}")
+        print("🔄 Falling back to predefined models")
+        return get_fallback_openai_models()
+
+
+def get_fallback_openai_models() -> List[Dict[str, Any]]:
+    """
+    Fallback OpenAI models if dynamic fetching fails.
+    """
+    all_models = [
+        {"key": "openai/gpt-4o", "model_name": "gpt-4o", "class": ChatOpenAI, 
          "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "openai/gpt-4.5-preview", "model_name": "gpt-4.5-preview", "class": ChatOpenAI,
+        {"key": "openai/gpt-4o-mini", "model_name": "gpt-4o-mini", "class": ChatOpenAI,
          "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "openai/gpt-4.1-nano-2025-04-14", "model_name": "gpt-4.1-nano-2025-04-14", "class": ChatOpenAI,
+        {"key": "openai/gpt-4-turbo", "model_name": "gpt-4-turbo", "class": ChatOpenAI,
          "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-    ],
-    "groq": [
-        {"key": "groq/meta-llama/llama-guard-4-12b", "model_name": "meta-llama/llama-guard-4-12b", "class": ChatGroq,
+        {"key": "openai/gpt-3.5-turbo", "model_name": "gpt-3.5-turbo", "class": ChatOpenAI,
          "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-         "model_name": "meta-llama/llama-4-scout-17b-16e-instruct", "class": ChatGroq, "args": {"temperature": 0.7},
-         "model_id_key": "model_name"},
-        {"key": "groq/deepseek-r1-distill-llama-70b", "model_name": "deepseek-r1-distill-llama-70b", "class": ChatGroq,
-         "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/llama-4-maverick-17b", "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    ]
+    return [model for model in all_models if is_text_model(model["model_name"], 'openai')]
+
+
+def fetch_xai_models(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Dynamically fetch available xAI models from the API.
+    xAI API is OpenAI-compatible, so we use OpenAI client with custom base_url.
+    """
+    try:
+        # Use OpenAI client with xAI endpoint since they're API-compatible
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.x.ai/v1"
+        )
+        models = client.models.list()
+
+        grok_models = []
+        for model in models.data:
+            model_id = model.id
+            # Filter for Grok models that are text-based
+            if is_text_model(model_id, 'xai') and any(prefix in model_id.lower() for prefix in ['grok']):
+                grok_models.append({
+                    "key": f"xAI/{model_id}",
+                    "model_name": model_id,
+                    "class": ChatXAI,
+                    "args": {"temperature": 0.7},
+                    "model_id_key": "model"
+                })
+
+        print(f"✅ Fetched {len(grok_models)} xAI Grok models dynamically")
+        return grok_models
+
+    except Exception as e:
+        print(f"❌ Failed to fetch xAI models: {e}")
+        print("🔄 Falling back to predefined Grok models")
+        return get_fallback_xai_models()
+
+
+def get_fallback_xai_models() -> List[Dict[str, Any]]:
+    """
+    Fallback xAI models if dynamic fetching fails.
+    """
+    all_models = [
+        {"key": "xAI/grok-beta", "model_name": "grok-beta", "class": ChatXAI,
+         "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "xAI/grok-2", "model_name": "grok-2", "class": ChatXAI,
+         "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "xAI/grok-2-mini", "model_name": "grok-2-mini", "class": ChatXAI,
+         "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "xAI/grok-3", "model_name": "grok-3", "class": ChatXAI,
+         "args": {"temperature": 0.7}, "model_id_key": "model"},
+    ]
+    return [model for model in all_models if is_text_model(model["model_name"], 'xai')]
+
+
+def fetch_google_models(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Dynamically fetch available Google Gemini models from the API.
+    """
+    try:
+        if genai is None:
+            raise ImportError("google-generativeai package not available")
+
+        genai.configure(api_key=api_key)
+
+        models = genai.list_models()
+
+        google_models = []
+        for model in models:
+            model_name = model.name.split('/')[-1] if '/' in model.name else model.name
+
+            if is_text_model(model_name, 'google') and hasattr(model, 'supported_generation_methods'):
+                supported_methods = [method for method in model.supported_generation_methods]
+                if 'generateContent' in supported_methods:
+                    google_models.append({
+                        "key": f"google/{model_name}",
+                        "model_name": model_name,
+                        "class": ChatGoogleGenerativeAI,
+                        "args": {"temperature": 0.7},
+                        "model_id_key": "model"
+                    })
+
+        print(f"✅ Fetched {len(google_models)} Google Gemini models dynamically")
+        return google_models
+
+    except Exception as e:
+        print(f"❌ Failed to fetch Google models: {e}")
+        print("🔄 Falling back to predefined Gemini models")
+        return get_fallback_google_models()
+
+
+def get_fallback_google_models() -> List[Dict[str, Any]]:
+    """
+    Fallback Google models if dynamic fetching fails.
+    """
+    all_models = [
+        {"key": "google/gemini-1.5-flash", "model_name": "gemini-1.5-flash",
+         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "google/gemini-1.5-pro", "model_name": "gemini-1.5-pro",
+         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "google/gemini-2.0-flash-exp", "model_name": "gemini-2.0-flash-exp",
+         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "google/gemini-2.5-flash", "model_name": "gemini-2.5-flash",
+         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
+        {"key": "google/gemini-2.5-pro", "model_name": "gemini-2.5-pro",
+         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
+    ]
+    return [model for model in all_models if is_text_model(model["model_name"], 'google')]
+
+
+def fetch_anthropic_models(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Dynamically fetch available Anthropic Claude models from the API.
+    """
+    try:
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+
+        response = requests.get(
+            "https://api.anthropic.com/v1/models",
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+
+        anthropic_models = []
+        for model in data.get("data", []):
+            model_id = model.get("id")
+            display_name = model.get("display_name", model_id)
+
+            if model_id and is_text_model(model_id, 'anthropic') and "claude" in model_id.lower():
+                anthropic_models.append({
+                    "key": f"anthropic/{display_name}",
+                    "model_name": model_id,
+                    "class": ChatAnthropic,
+                    "args": {"temperature": 0.7},
+                    "model_id_key": "model_name"
+                })
+
+        print(f"[OK] Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
+        return anthropic_models
+
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch Anthropic models: {e}")
+        print("[INFO] Falling back to predefined Claude models")
+        return get_fallback_anthropic_models()
+
+
+def get_fallback_anthropic_models() -> List[Dict[str, Any]]:
+    """
+    Fallback Anthropic models if dynamic fetching fails.
+    """
+    all_models = [
+        {"key": "anthropic/Claude Sonnet 3.5", "model_name": "claude-3-5-sonnet-20241022",
+         "class": ChatAnthropic, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "anthropic/Claude Sonnet 3.7", "model_name": "claude-3-7-sonnet-20250219",
+         "class": ChatAnthropic, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "anthropic/Claude Sonnet 4", "model_name": "claude-sonnet-4-20250514",
+         "class": ChatAnthropic, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "anthropic/Claude Opus 4", "model_name": "claude-opus-4-20250514",
+         "class": ChatAnthropic, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "anthropic/Claude Haiku 3.5", "model_name": "claude-3-5-haiku-20241022",
+         "class": ChatAnthropic, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+    ]
+    return [model for model in all_models if is_text_model(model["model_name"], 'anthropic')]
+
+
+def fetch_groq_models(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Dynamically fetch available Groq models from the API.
+    """
+    try:
+        if Groq is None:
+            raise ImportError("groq package not available")
+
+        client = Groq(api_key=api_key)
+
+        models = client.models.list()
+
+        groq_models = []
+        for model in models.data:
+            model_id = model.id
+
+            if is_text_model(model_id, 'groq') and any(
+                    prefix in model_id.lower() for prefix in ['llama', 'gemma', 'qwen', 'deepseek', 'mistral']):
+                if 'guard' not in model_id.lower():
+                    groq_models.append({
+                        "key": f"groq/{model_id}",
+                        "model_name": model_id,
+                        "class": ChatGroq,
+                        "args": {"temperature": 0.7},
+                        "model_id_key": "model_name"
+                    })
+
+        print(f"[OK] Fetched {len(groq_models)} Groq models dynamically")
+        return groq_models
+
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch Groq models: {e}")
+        print("[INFO] Falling back to predefined Groq models")
+        return get_fallback_groq_models()
+
+
+def get_fallback_groq_models() -> List[Dict[str, Any]]:
+    """
+    Fallback Groq models if dynamic fetching fails.
+    """
+    all_models = [
+        {"key": "groq/llama-3.3-70b-versatile", "model_name": "llama-3.3-70b-versatile",
          "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/llama-3.3-70b-versatile", "model_name": "llama-3.3-70b-versatile", "class": ChatGroq,
-         "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/qwen-qwq-32b", "model_name": "qwen-qwq-32b", "class": ChatGroq, "args": {"temperature": 0.7},
-         "model_id_key": "model_name"},
-    ],
-    "google": [
-        {"key": "google/gemini-2.5-flash-preview-04-17", "model_name": "gemini-2.5-flash-preview-04-17",
-         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "google/gemini-2.5-pro-preview-03-25", "model_name": "gemini-2.5-pro-preview-03-25",
-         "class": ChatGoogleGenerativeAI, "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "google/gemma-3-12b-it", "model_name": "gemma-3-12b-it", "class": ChatGoogleGenerativeAI,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "google/gemini-2.0-flash-exp", "model_name": "gemini-2.0-flash-exp", "class": ChatGoogleGenerativeAI,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-    ],
-    "anthropic": [
-        {"key": "anthropic/claude-3-5-sonnet", "model_name": "claude-3-5-sonnet-20241022", "class": ChatAnthropic,
-         "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "anthropic/claude-3.7-sonnet", "model_name": "claude-3-7-sonnet-20250219", "class": ChatAnthropic,
-         "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "anthropic/Claude Sonnet 4", "model_name": "claude-sonnet-4-20250514", "class": ChatAnthropic,
-         "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "anthropic/Claude Opus 4", "model_name": "claude-opus-4-20250514", "class": ChatAnthropic,
-         "args": {"temperature": 0.7}, "model_id_key": "model_name"}
-    ],
-    "xai": [
-        {"key": "xAI/Grok 3 Beta", "model_name": "grok-3-beta", "class": CustomGrokChatModel,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "xAI/grok-3 mini beta", "model_name": "grok-3-mini-beta", "class": CustomGrokChatModel,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "xAI/Grok 3 Mini Beta (Fast Model)", "model_name": "grok-3-mini-fast-beta",
-         "class": CustomGrokChatModel, "args": {"temperature": 0.7}, "model_id_key": "model"},
-    ],
-}
+        {"key": "groq/llama-3.1-8b-instant", "model_name": "llama-3.1-8b-instant",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/gemma2-9b-it", "model_name": "gemma2-9b-it",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/qwen-qwq-32b", "model_name": "qwen-qwq-32b",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/deepseek-r1-distill-llama-70b", "model_name": "deepseek-r1-distill-llama-70b",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/llama3-70b-8192", "model_name": "llama3-70b-8192",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+    ]
+    return [model for model in all_models if is_text_model(model["model_name"], 'groq')]
 
+
+def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Get model definitions with dynamic fetching for OpenAI, xAI, Google, Anthropic, and Groq models.
+    Uses caching to avoid frequent API calls.
+    """
+    global _model_cache, _cache_timestamp
+
+    current_time = time.time()
+
+    if _model_cache and (current_time - _cache_timestamp) < CACHE_DURATION:
+        print("📋 Using cached model definitions")
+        return _model_cache
+
+    openai_models = []
+    if API_KEYS.get("openai"):
+        openai_models = fetch_openai_models(API_KEYS["openai"])
+    else:
+        print("⚪ OpenAI API key not found, using fallback models")
+        openai_models = get_fallback_openai_models()
+
+    xai_models = []
+    if API_KEYS.get("xai"):
+        xai_models = fetch_xai_models(API_KEYS["xai"])
+    else:
+        print("⚪ xAI API key not found, using fallback Grok models")
+        xai_models = get_fallback_xai_models()
+
+    google_models = []
+    if API_KEYS.get("google"):
+        google_models = fetch_google_models(API_KEYS["google"])
+    else:
+        print("[INFO] Google API key not found, using fallback Gemini models")
+        google_models = get_fallback_google_models()
+
+    anthropic_models = []
+    if API_KEYS.get("anthropic"):
+        anthropic_models = fetch_anthropic_models(API_KEYS["anthropic"])
+    else:
+        print("[INFO] Anthropic API key not found, using fallback Claude models")
+        anthropic_models = get_fallback_anthropic_models()
+
+    groq_models = []
+    if API_KEYS.get("groq"):
+        groq_models = fetch_groq_models(API_KEYS["groq"])
+    else:
+        print("[INFO] Groq API key not found, using fallback models")
+        groq_models = get_fallback_groq_models()
+
+    model_definitions = {
+        "openai": openai_models,
+        "groq": groq_models,
+        "google": google_models,
+        "anthropic": anthropic_models,
+        "xai": xai_models,
+    }
+
+    _model_cache = model_definitions
+    _cache_timestamp = current_time
+    print(f"💾 Model definitions cached for {CACHE_DURATION // 60} minutes")
+    print(f"📊 Total models after filtering: {sum(len(models) for models in model_definitions.values())}")
+
+    return model_definitions
 
 # --- initialize_models Function (MODIFIED) ---
 def initialize_models():
@@ -89,21 +477,22 @@ def initialize_models():
 
     print("\n--- Initializing Models (from models/model_loader.py) ---")
 
+    MODEL_DEFINITIONS = get_model_definitions()
+
     for provider, model_list in MODEL_DEFINITIONS.items():
         api_key = API_KEYS.get(provider)
         api_key_arg_name = API_KEY_ARG_NAMES.get(provider)
 
         if not api_key_arg_name:
             print(f"\n⚠️ Skipping provider '{provider}': Not configured in config/settings.py (API_KEY_ARG_NAMES).")
-            # Log errors for all models under this unconfigured provider
             for model_def in model_list:
                 initialization_errors[model_def["key"]] = f"Provider '{provider}' not configured in API_KEY_ARG_NAMES."
             continue
 
-        if provider == "xai" and CustomGrokChatModel is None:
-            print(f"\n⚪ Skipping xAI models: CustomGrokChatModel class not imported.")
+        if provider == "xai" and ChatXAI is None:
+            print(f"\n⚪ Skipping xAI models: ChatXAI class not imported. Install with: pip install langchain-xai")
             for model_def in model_list:
-                initialization_errors[model_def["key"]] = "CustomGrokChatModel class not available (import failed)."
+                initialization_errors[model_def["key"]] = "ChatXAI class not available. Install langchain-xai package."
             continue
 
         if not api_key:
@@ -120,12 +509,12 @@ def initialize_models():
             model_class = model_def["class"]
             constructor_id_param_name = model_def.get("model_id_key")
 
-            if model_class is None and provider == "xai":  # Should have been caught by CustomGrokChatModel is None
-                error_msg = f"Class definition missing for {model_key} (CustomGrokChatModel likely failed to import)."
+            if model_class is None and provider == "xai":
+                error_msg = f"Class definition missing for {model_key} (ChatXAI likely failed to import)."
                 initialization_errors[model_key] = error_msg
                 print(f"⚪ Skipping {model_key}: {error_msg}")
                 continue
-            elif model_class is None:  # General case, though less likely with explicit imports
+            elif model_class is None:
                 error_msg = f"Class definition missing for {model_key}."
                 initialization_errors[model_key] = error_msg
                 print(f"⚪ Skipping {model_key}: {error_msg}")
@@ -156,8 +545,5 @@ def initialize_models():
     if initialization_errors:
         print("\n--- Initialization Warnings ---")
         print("Some models failed to initialize (check errors above). They will not be available for selection.")
-        # for key, err in initialization_errors.items(): # Optional: print detailed errors again
-        #     if key not in initialized_models:
-        #         print(f"  - {key}: {err}")
 
     return initialized_models, initialization_errors

@@ -19,21 +19,31 @@ API_KEY_ARG_NAMES = {
     "groq": "groq_api_key",
     "google": "google_api_key", # For ChatGoogleGenerativeAI, it's 'google_api_key'
     "anthropic": "anthropic_api_key",
-    "xai": "api_key", # As defined in your CustomGrokChatModel
+    "xai": "xai_api_key",  # Official ChatXAI parameter name
 }
 
 print("config/settings.py: API Key mapping complete.")
 if not any(API_KEYS.values()):
     print("WARNING (from config/settings.py): No API keys found in the environment for any provider.")
 if not API_KEYS.get("xai"):
-    print("INFO (from config/settings.py): XAI_API_KEY not found in environment. xAI models will be skipped if CustomGrokChatModel is used.")
+    print("INFO (from config/settings.py): XAI_API_KEY not found in environment. xAI models will be skipped.")
 
 # --- Define Available Tasks ---
 TASKS = {
-    "1": {"name": "Refine Text (Email, Article, etc.)", "id": "refine"},
-    "2": {"name": "Translate: English -> Chinese", "id": "en_to_zh"},
-    "3": {"name": "Translate: Chinese -> English", "id": "zh_to_en"},
+    "1": {"id": "refine", "name": "Refine Text (Email, Article, etc.)"},
+    "2": {"id": "refine_presentation", "name": "Refine Presentation (Summarize Article)"},
+    "3": {"id": "auto_translate", "name": "Auto-Translate (Detect Language & Translate)"},
 }
+
+# --- Model Filtering Configuration ---
+# Set to True to enable strict filtering of non-text models
+ENABLE_STRICT_MODEL_FILTERING = True
+
+# Additional keywords to exclude (case-insensitive)
+CUSTOM_EXCLUDE_KEYWORDS = [
+    # Add any custom keywords you want to exclude
+    # 'keyword1', 'keyword2'
+]
 
 # You can add other application-wide, non-sensitive configurations here
 # DEFAULT_TEMPERATURE = 0.7

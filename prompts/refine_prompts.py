@@ -1,8 +1,30 @@
 # prompts/refine_prompts.py
 
-REFINE_TEXT_PROMPT = (
-    "You are a helpful assistant that refines and improves text. "
-    "Please refine the following text, making it clearer, more concise, and grammatically correct. "
-    "Do not add any conversational fluff, just provide the refined text.\n\n"
-    "Original Text:\n{user_text}\n\nRefined Text:"
-)
+REFINE_TEXT_PROMPT = """You are a professional communication expert. Your task is to rewrite and refine the following text to make it clearer, more professional, and more effective.
+
+**INSTRUCTIONS:**
+1. Improve clarity, grammar, and professional tone
+2. Maintain the original meaning and intent
+3. Keep all factual information exactly as provided
+4. Do not add new information or invent details
+5. For emails: Include proper subject line, greeting, and closing
+6. Use professional formatting and structure
+
+**TEXT TO REFINE:**
+{user_text}
+
+**REFINED VERSION:**"""
+
+REFINE_PRESENTATION_PROMPT = """You are a public speaking coach. Your task is to rewrite the following text into clear, impactful talking points for a presentation.
+
+**INSTRUCTIONS:**
+1. Convert text into bullet points and short, powerful sentences
+2. Maintain all original information and facts
+3. Do not add new information or invent details
+4. Focus on clarity and impact for verbal presentation
+5. Use strong, actionable language
+
+**TEXT TO CONVERT:**
+{user_text}
+
+**PRESENTATION TALKING POINTS:**"""

@@ -1,8 +1,9 @@
-python-dotenv
-langchain
-langchain-openai
+python-dotenv~=1.1.0
+langchain~=0.3.25
+langchain-openai~=0.3.21
 langchain-groq
-langchain-google-genai
-langchain-anthropic
-# Add other specific langchain community or experimental packages if used
-# requests # If custom_models.py uses it directly and it's not a sub-dependency
+langchain-google-genai~=2.1.6
+langchain-anthropic~=0.3.15
+langchain-xai
+langchain-core~=0.3.64
+langdetect~=1.0.9
