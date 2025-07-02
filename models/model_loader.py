@@ -18,7 +18,7 @@ from config.settings import API_KEYS, API_KEY_ARG_NAMES, ENABLE_STRICT_MODEL_FIL
 # Import for dynamic model fetching
 from openai import OpenAI
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 # Import for Google model fetching
 try:
@@ -46,15 +46,37 @@ import requests
 # Global cache for model definitions
 _model_cache = {}
 _cache_timestamp = 0
-CACHE_DURATION = 3600  # 1 hour in seconds
+
+# Import constants
+from config.constants import CacheConfig, ModelFiltering
+from utils.logger import info, warning, error
 
 
 # --- Model Filtering Helper ---
 def is_text_model(model_id: str, provider: str = "") -> bool:
     """
     Comprehensive filtering to identify text-based models suitable for content refinement.
-    Excludes image, audio, video, embedding, and other non-text generation models.
-    Can be configured via settings.py
+    
+    This function uses heuristics and keyword matching to determine if a model is appropriate
+    for text processing tasks like content refinement and translation. It excludes models
+    designed for image generation, audio processing, embeddings, and other non-text tasks.
+    
+    The filtering can be disabled or customized via settings.py configuration.
+    
+    Args:
+        model_id: The model identifier to evaluate (e.g., "gpt-4o", "dall-e-3")
+        provider: Optional provider name for provider-specific filtering rules
+        
+    Returns:
+        bool: True if the model appears to be suitable for text processing, False otherwise
+        
+    Example:
+        >>> is_text_model("gpt-4o", "openai")
+        True
+        >>> is_text_model("dall-e-3", "openai")  
+        False
+        >>> is_text_model("whisper-1", "openai")
+        False
     """
     # Skip filtering if disabled in settings
     if not ENABLE_STRICT_MODEL_FILTERING:
@@ -62,66 +84,36 @@ def is_text_model(model_id: str, provider: str = "") -> bool:
 
     model_id_lower = model_id.lower()
 
-    # Common non-text keywords across all providers
-    non_text_keywords = [
-        # Image/Vision models
-        'image', 'vision', 'dalle', 'clip', 'vit', 'img', 'visual', 'pic', 'photo',
-        # Audio models  
-        'audio', 'tts', 'whisper', 'speech', 'voice', 'sound', 'music',
-        # Video models
-        'video', 'vid', 'motion', 'animation',
-        # Embedding models
-        'embed', 'embedding', 'similarity', 'vector', 'retrieval',
-        # Code/Programming specific (not for text refinement)
-        'code', 'programming', 'dev', 'developer',
-        # Moderation/Safety models
-        'moderation', 'safety', 'content-filter', 'toxic',
-        # Fine-tuning/Training models
-        'fine-tune', 'finetune', 'training', 'custom',
-        # Other specialized models
-        'reasoning', 'math', 'science', 'research',
-        # Security/Guard models
-        'guard', 'guardian', 'safety-model',
-        # Legacy/Edit models
-        'edit', 'davinci-edit', 'curie-edit'
-    ]
+    # Common non-text keywords from configuration
+    non_text_keywords = ModelFiltering.NON_TEXT_KEYWORDS.copy()
 
     # Add custom exclude keywords from settings
     non_text_keywords.extend([keyword.lower() for keyword in CUSTOM_EXCLUDE_KEYWORDS])
 
-    # Provider-specific exclusions
-    provider_specific_exclusions = {
-        'openai': ['davinci-edit', 'curie-edit', 'babbage-edit', 'ada-edit'],
-        'google': ['bison', 'gecko', 'otter', 'unicorn'],  # Legacy/specialized Gemini models
-        'anthropic': [],  # Claude models are generally text-focused
-        'groq': ['whisper', 'distil-whisper'],  # Audio transcription models
-        'xai': []  # Grok models are generally text-focused
-    }
+    # Provider-specific exclusions from configuration
+    provider_specific_exclusions = ModelFiltering.PROVIDER_EXCLUSIONS
 
     # Check common non-text keywords
     for keyword in non_text_keywords:
         if keyword in model_id_lower:
-            print(f"🔎 Filtering out non-text model ({keyword}): {model_id}")
+            info(f"🔎 Filtering out non-text model ({keyword}): {model_id}")
             return False
 
     # Check provider-specific exclusions
     if provider and provider in provider_specific_exclusions:
         for excluded_model in provider_specific_exclusions[provider]:
             if excluded_model.lower() in model_id_lower:
-                print(f"🔎 Filtering out provider-specific non-text model: {model_id}")
+                info(f"🔎 Filtering out provider-specific non-text model: {model_id}")
                 return False
 
     # Additional heuristics for text model identification
     # Models with these patterns are likely text models
-    text_indicators = [
-        'chat', 'gpt', 'claude', 'gemini', 'llama', 'mistral', 'qwen', 'deepseek', 'grok',
-        'text', 'language', 'conversation', 'instruct', 'assistant'
-    ]
+    text_indicators = ModelFiltering.TEXT_INDICATORS
 
     has_text_indicator = any(indicator in model_id_lower for indicator in text_indicators)
 
     if not has_text_indicator:
-        print(f"🔎 Model may not be text-focused (no text indicators): {model_id}")
+        info(f"🔎 Model may not be text-focused (no text indicators): {model_id}")
         return False
 
     return True
@@ -151,12 +143,12 @@ def fetch_openai_models(api_key: str) -> List[Dict[str, Any]]:
                     "model_id_key": "model_name"
                 })
 
-        print(f"✅ Fetched {len(chat_models)} OpenAI chat models dynamically")
+        info(f"✅ Fetched {len(chat_models)} OpenAI chat models dynamically")
         return chat_models
 
     except Exception as e:
-        print(f"❌ Failed to fetch OpenAI models: {e}")
-        print("🔄 Falling back to predefined models")
+        error(f"❌ Failed to fetch OpenAI models: {e}")
+        info("🔄 Falling back to predefined models")
         return get_fallback_openai_models()
 
 
@@ -203,12 +195,12 @@ def fetch_xai_models(api_key: str) -> List[Dict[str, Any]]:
                     "model_id_key": "model"
                 })
 
-        print(f"✅ Fetched {len(grok_models)} xAI Grok models dynamically")
+        info(f"✅ Fetched {len(grok_models)} xAI Grok models dynamically")
         return grok_models
 
     except Exception as e:
-        print(f"❌ Failed to fetch xAI models: {e}")
-        print("🔄 Falling back to predefined Grok models")
+        error(f"❌ Failed to fetch xAI models: {e}")
+        info("🔄 Falling back to predefined Grok models")
         return get_fallback_xai_models()
 
 
@@ -256,12 +248,12 @@ def fetch_google_models(api_key: str) -> List[Dict[str, Any]]:
                         "model_id_key": "model"
                     })
 
-        print(f"✅ Fetched {len(google_models)} Google Gemini models dynamically")
+        info(f"✅ Fetched {len(google_models)} Google Gemini models dynamically")
         return google_models
 
     except Exception as e:
-        print(f"❌ Failed to fetch Google models: {e}")
-        print("🔄 Falling back to predefined Gemini models")
+        error(f"❌ Failed to fetch Google models: {e}")
+        info("🔄 Falling back to predefined Gemini models")
         return get_fallback_google_models()
 
 
@@ -318,12 +310,12 @@ def fetch_anthropic_models(api_key: str) -> List[Dict[str, Any]]:
                     "model_id_key": "model_name"
                 })
 
-        print(f"[OK] Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
+        info(f"✅ Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
         return anthropic_models
 
     except Exception as e:
-        print(f"[ERROR] Failed to fetch Anthropic models: {e}")
-        print("[INFO] Falling back to predefined Claude models")
+        error(f"❌ Failed to fetch Anthropic models: {e}")
+        info("🔄 Falling back to predefined Claude models")
         return get_fallback_anthropic_models()
 
 
@@ -373,12 +365,12 @@ def fetch_groq_models(api_key: str) -> List[Dict[str, Any]]:
                         "model_id_key": "model_name"
                     })
 
-        print(f"[OK] Fetched {len(groq_models)} Groq models dynamically")
+        info(f"✅ Fetched {len(groq_models)} Groq models dynamically")
         return groq_models
 
     except Exception as e:
-        print(f"[ERROR] Failed to fetch Groq models: {e}")
-        print("[INFO] Falling back to predefined Groq models")
+        error(f"❌ Failed to fetch Groq models: {e}")
+        info("🔄 Falling back to predefined Groq models")
         return get_fallback_groq_models()
 
 
@@ -406,49 +398,71 @@ def get_fallback_groq_models() -> List[Dict[str, Any]]:
 def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
     """
     Get model definitions with dynamic fetching for OpenAI, xAI, Google, Anthropic, and Groq models.
-    Uses caching to avoid frequent API calls.
+    
+    This function fetches available models from each provider's API and caches the results
+    to avoid frequent API calls. If API calls fail, it falls back to predefined model lists.
+    Model definitions are filtered to include only text-based models suitable for content
+    refinement tasks.
+    
+    Uses caching to avoid frequent API calls (cache duration: 1 hour).
+    
+    Returns:
+        Dict[str, List[Dict[str, Any]]]: Dictionary mapping provider names to lists of
+        model definition dictionaries. Each model definition contains:
+            - key: Unique identifier for the model (e.g., "openai/gpt-4o")
+            - model_name: Model identifier used by the provider's API
+            - class: LangChain model class to instantiate
+            - args: Default arguments for model initialization
+            - model_id_key: Parameter name for model ID in constructor
+            
+    Example:
+        >>> definitions = get_model_definitions()
+        >>> definitions.keys()
+        dict_keys(['openai', 'groq', 'google', 'anthropic', 'xai'])
+        >>> len(definitions['openai'])
+        4
     """
     global _model_cache, _cache_timestamp
 
     current_time = time.time()
 
-    if _model_cache and (current_time - _cache_timestamp) < CACHE_DURATION:
-        print("📋 Using cached model definitions")
+    if _model_cache and (current_time - _cache_timestamp) < CacheConfig.DURATION_SECONDS:
+        info("📋 Using cached model definitions")
         return _model_cache
 
     openai_models = []
     if API_KEYS.get("openai"):
         openai_models = fetch_openai_models(API_KEYS["openai"])
     else:
-        print("⚪ OpenAI API key not found, using fallback models")
+        warning("⚪ OpenAI API key not found, using fallback models")
         openai_models = get_fallback_openai_models()
 
     xai_models = []
     if API_KEYS.get("xai"):
         xai_models = fetch_xai_models(API_KEYS["xai"])
     else:
-        print("⚪ xAI API key not found, using fallback Grok models")
+        warning("⚪ xAI API key not found, using fallback Grok models")
         xai_models = get_fallback_xai_models()
 
     google_models = []
     if API_KEYS.get("google"):
         google_models = fetch_google_models(API_KEYS["google"])
     else:
-        print("[INFO] Google API key not found, using fallback Gemini models")
+        warning("⚪ Google API key not found, using fallback Gemini models")
         google_models = get_fallback_google_models()
 
     anthropic_models = []
     if API_KEYS.get("anthropic"):
         anthropic_models = fetch_anthropic_models(API_KEYS["anthropic"])
     else:
-        print("[INFO] Anthropic API key not found, using fallback Claude models")
+        warning("⚪ Anthropic API key not found, using fallback Claude models")
         anthropic_models = get_fallback_anthropic_models()
 
     groq_models = []
     if API_KEYS.get("groq"):
         groq_models = fetch_groq_models(API_KEYS["groq"])
     else:
-        print("[INFO] Groq API key not found, using fallback models")
+        warning("⚪ Groq API key not found, using fallback models")
         groq_models = get_fallback_groq_models()
 
     model_definitions = {
@@ -461,21 +475,40 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
 
     _model_cache = model_definitions
     _cache_timestamp = current_time
-    print(f"💾 Model definitions cached for {CACHE_DURATION // 60} minutes")
-    print(f"📊 Total models after filtering: {sum(len(models) for models in model_definitions.values())}")
+    info(f"💾 Model definitions cached for {CacheConfig.CACHE_DURATION_MINUTES} minutes")
+    info(f"📊 Total models after filtering: {sum(len(models) for models in model_definitions.values())}")
 
     return model_definitions
 
 # --- initialize_models Function (MODIFIED) ---
-def initialize_models():
+def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
-    Initializes all models defined in MODEL_DEFINITIONS based on available API keys.
-    Returns: tuple: (initialized_models dict, initialization_errors dict)
+    Initialize all AI models defined in MODEL_DEFINITIONS based on available API keys.
+    
+    This function dynamically fetches model definitions from various AI providers,
+    initializes model instances using the appropriate LangChain classes, and handles
+    errors gracefully by providing fallback models when API calls fail.
+    
+    Returns:
+        Tuple containing:
+            - initialized_models (Dict[str, Any]): Dictionary mapping model keys to 
+              initialized LangChain model instances
+            - initialization_errors (Dict[str, str]): Dictionary mapping model keys
+              to error messages for models that failed to initialize
+              
+    Example:
+        >>> models, errors = initialize_models()
+        >>> len(models)
+        15
+        >>> 'openai/gpt-4o' in models
+        True
+        >>> if errors:
+        ...     print(f"Failed to initialize: {list(errors.keys())}")
     """
     initialized_models = {}
     initialization_errors = {}
 
-    print("\n--- Initializing Models (from models/model_loader.py) ---")
+    info("\n--- Initializing Models (from models/model_loader.py) ---")
 
     MODEL_DEFINITIONS = get_model_definitions()
 
@@ -484,25 +517,25 @@ def initialize_models():
         api_key_arg_name = API_KEY_ARG_NAMES.get(provider)
 
         if not api_key_arg_name:
-            print(f"\n⚠️ Skipping provider '{provider}': Not configured in config/settings.py (API_KEY_ARG_NAMES).")
+            warning(f"\n⚠️ Skipping provider '{provider}': Not configured in config/settings.py (API_KEY_ARG_NAMES).")
             for model_def in model_list:
                 initialization_errors[model_def["key"]] = f"Provider '{provider}' not configured in API_KEY_ARG_NAMES."
             continue
 
         if provider == "xai" and ChatXAI is None:
-            print(f"\n⚪ Skipping xAI models: ChatXAI class not imported. Install with: pip install langchain-xai")
+            warning(f"\n⚪ Skipping xAI models: ChatXAI class not imported. Install with: pip install langchain-xai")
             for model_def in model_list:
                 initialization_errors[model_def["key"]] = "ChatXAI class not available. Install langchain-xai package."
             continue
 
         if not api_key:
-            print(
+            warning(
                 f"\n⚪ {provider.capitalize()} API Key not found in environment (via config/settings.py), skipping {provider} models.")
             for model_def in model_list:
                 initialization_errors[model_def["key"]] = f"{provider.capitalize()} API Key not found."
             continue
 
-        print(f"\n-- Initializing {provider.capitalize()} models --")
+        info(f"\n-- Initializing {provider.capitalize()} models --")
         for model_def in model_list:
             model_key = model_def["key"]
             model_identifier_value = model_def["model_name"]
@@ -512,18 +545,18 @@ def initialize_models():
             if model_class is None and provider == "xai":
                 error_msg = f"Class definition missing for {model_key} (ChatXAI likely failed to import)."
                 initialization_errors[model_key] = error_msg
-                print(f"⚪ Skipping {model_key}: {error_msg}")
+                warning(f"⚪ Skipping {model_key}: {error_msg}")
                 continue
             elif model_class is None:
                 error_msg = f"Class definition missing for {model_key}."
                 initialization_errors[model_key] = error_msg
-                print(f"⚪ Skipping {model_key}: {error_msg}")
+                warning(f"⚪ Skipping {model_key}: {error_msg}")
                 continue
 
             if not constructor_id_param_name:
                 error_msg = f"Configuration error: 'model_id_key' missing for {model_key} in MODEL_DEFINITIONS."
                 initialization_errors[model_key] = error_msg
-                print(f"⚪ Skipping {model_key}: {error_msg}")
+                warning(f"⚪ Skipping {model_key}: {error_msg}")
                 continue
 
             model_args_from_def = model_def["args"].copy()
@@ -534,16 +567,16 @@ def initialize_models():
                 final_constructor_args = {**constructor_kwargs, **model_args_from_def}
 
                 initialized_models[model_key] = model_class(**final_constructor_args)
-                print(f"✅ Initialized {model_key}")
+                info(f"✅ Initialized {model_key}")
 
             except Exception as e:
                 error_msg = f"Failed to initialize {model_key}: {e}"
                 initialization_errors[model_key] = error_msg
-                print(f"❌ {error_msg}")
+                error(f"❌ {error_msg}")
 
-    print("\n--- Model Initialization Complete ---")
+    info("\n--- Model Initialization Complete ---")
     if initialization_errors:
-        print("\n--- Initialization Warnings ---")
-        print("Some models failed to initialize (check errors above). They will not be available for selection.")
+        warning("\n--- Initialization Warnings ---")
+        warning("Some models failed to initialize (check errors above). They will not be available for selection.")
 
     return initialized_models, initialization_errors
