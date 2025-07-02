@@ -3,7 +3,7 @@ Console user interface for AIRefiner application.
 Separates UI logic from business logic.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 
 from config.config_manager import get_config
 from config.constants import UIConfig
@@ -80,9 +80,9 @@ class ModelSelector(LoggerMixin):
     def __init__(self, menu_manager: MenuManager):
         self.menu_manager = menu_manager
 
-    def select_model(self, available_models: list[str]) -> Optional[str]:
+    def select_model(self, available_models: List[str]) -> Optional[str]:
         """
-        Handle model selection UI.
+        Handle model selection UI with models grouped by company.
         
         Args:
             available_models: List of available model keys
@@ -96,30 +96,97 @@ class ModelSelector(LoggerMixin):
             )
             return None
 
-        model_options = {str(i + 1): name for i, name in enumerate(available_models)}
-        choice = self.menu_manager.display_menu("Select a Model", model_options)
+        # Group models by company/provider
+        grouped_models = self._group_models_by_provider(available_models)
+
+        # Display grouped models
+        choice, model_mapping = self._display_grouped_models(grouped_models)
 
         if choice == "0":
             return "exit"
 
-        try:
-            model_index = int(choice) - 1
-            if 0 <= model_index < len(available_models):
-                selected_model = available_models[model_index]
-                self.menu_manager.display_status_message(
-                    f"Selected model: {selected_model}", "success"
-                )
-                return selected_model
-            else:
-                self.menu_manager.display_status_message(
-                    "Invalid choice. Please try again.", "error"
-                )
-                return None
-        except ValueError:
+        # Check if choice is in the model mapping
+        if choice in model_mapping:
+            selected_model = model_mapping[choice]
             self.menu_manager.display_status_message(
-                "Invalid choice. Please enter a number.", "error"
+                f"Selected model: {selected_model}", "success"
+            )
+            return selected_model
+        else:
+            self.menu_manager.display_status_message(
+                "Invalid choice. Please try again.", "error"
             )
             return None
+
+    def _group_models_by_provider(self, available_models: List[str]) -> Dict[str, List[tuple]]:
+        """
+        Group models by their provider/company.
+        
+        Args:
+            available_models: List of available model keys
+            
+        Returns:
+            Dictionary mapping provider names to lists of models
+        """
+        grouped = {}
+
+        for model in available_models:
+            # Extract provider from model key (e.g., "openai/gpt-4" -> "openai")
+            if "/" in model:
+                provider = model.split("/")[0]
+                model_name = model.split("/", 1)[1]  # Get everything after first "/"
+            else:
+                provider = "Unknown"
+                model_name = model
+
+            # Capitalize provider name for display
+            provider_display = provider.capitalize()
+
+            if provider_display not in grouped:
+                grouped[provider_display] = []
+
+            grouped[provider_display].append((model, model_name))
+
+        # Sort providers and models within each provider
+        sorted_grouped = {}
+        for provider in sorted(grouped.keys()):
+            sorted_grouped[provider] = sorted(grouped[provider], key=lambda x: x[1])
+
+        return sorted_grouped
+
+    def _display_grouped_models(self, grouped_models: Dict[str, List[tuple]]) -> Tuple[str, Dict[str, str]]:
+        """
+        Display models grouped by provider.
+        
+        Args:
+            grouped_models: Dictionary of provider -> list of (model_key, model_name) tuples
+            
+        Returns:
+            Tuple of (user's choice as string, model_mapping dict)
+        """
+        print(f"\n{UIConfig.MENU_SEPARATOR}")
+        print("--- Select a Model ---")
+        print(f"{UIConfig.MENU_SEPARATOR}")
+
+        choice_counter = 1
+        model_mapping = {}  # Maps choice number to model key
+
+        for provider, models in grouped_models.items():
+            print(f"\n📋 {provider} Models:")
+            print("-" * (len(provider) + 9))
+
+            for model_key, model_name in models:
+                print(f"{choice_counter}. {model_name}")
+                model_mapping[str(choice_counter)] = model_key
+                choice_counter += 1
+
+        print(f"\n{UIConfig.MENU_SEPARATOR}")
+        print("0. Exit")
+        print(f"{UIConfig.MENU_SEPARATOR}")
+
+        choice = input("Enter choice: ").strip()
+
+        return choice, model_mapping
 
 
 class TaskSelector(LoggerMixin):
@@ -245,7 +312,7 @@ class ConsoleInterface(LoggerMixin):
         print("Goodbye!")
         print(f"{UIConfig.MENU_SEPARATOR}")
 
-    def select_model(self, available_models: list[str]) -> Optional[str]:
+    def select_model(self, available_models: List[str]) -> Optional[str]:
         """Select a model through the UI."""
         return self.model_selector.select_model(available_models)
 

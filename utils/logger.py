@@ -30,6 +30,51 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
+class SafeColoredFormatter(logging.Formatter):
+    """Safe colored formatter for console output without Unicode characters."""
+
+    COLORS = {
+        'DEBUG': '\033[36m',  # Cyan
+        'INFO': '\033[32m',  # Green
+        'WARNING': '\033[33m',  # Yellow
+        'ERROR': '\033[31m',  # Red
+        'CRITICAL': '\033[35m',  # Magenta
+    }
+    RESET = '\033[0m'
+
+    # Safe ASCII alternatives for Unicode emojis
+    EMOJI_REPLACEMENTS = {
+        '✅': '[OK]',
+        '❌': '[ERROR]',
+        '⚠️': '[WARN]',
+        'ℹ️': '[INFO]',
+        '⏳': '[LOADING]',
+        '🔎': '[FILTER]',
+        '📋': '[CACHE]',
+        '💾': '[SAVE]',
+        '📊': '[STATS]',
+        '🔄': '[RETRY]',
+        '⚪': '[SKIP]',
+        '🤖': '[AI]',
+        '👋': '[BYE]',
+        '🗑️': '[CLEAR]',
+    }
+
+    def format(self, record):
+        # Replace Unicode emojis with ASCII alternatives
+        message = record.getMessage()
+        for emoji, replacement in self.EMOJI_REPLACEMENTS.items():
+            message = message.replace(emoji, replacement)
+
+        # Update the record's message
+        record.msg = message
+        record.args = ()
+
+        log_color = self.COLORS.get(record.levelname, '')
+        record.levelname = f"{log_color}{record.levelname}{self.RESET}"
+        return super().format(record)
+
+
 class AIRefinerLogger:
     """Centralized logger for the AIRefiner application."""
 
@@ -51,22 +96,33 @@ class AIRefinerLogger:
 
     def _setup_logging(self):
         """Setup logging configuration."""
+        import os
+        
         # Clear any existing handlers
         self.logger.handlers.clear()
 
         # Set default level
         self.logger.setLevel(logging.INFO)
 
-        # Console handler with colored output
+        # Console handler with encoding-safe output
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
 
-        # Use colored formatter for console
-        colored_formatter = ColoredFormatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%H:%M:%S'
-        )
-        console_handler.setFormatter(colored_formatter)
+        # Use safe formatter on Windows to avoid Unicode issues
+        if os.name == 'nt':  # Windows
+            # Use safe formatter without emojis
+            formatter = SafeColoredFormatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%H:%M:%S'
+            )
+        else:
+            # Use regular colored formatter with emojis on Unix systems
+            formatter = ColoredFormatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%H:%M:%S'
+            )
+
+        console_handler.setFormatter(formatter)
 
         # File handler for persistent logging
         log_dir = Path("logs")
