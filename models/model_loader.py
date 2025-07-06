@@ -3,6 +3,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
+from langchain_xai import ChatXAI
 
 try:
     from dotenv import load_dotenv
@@ -11,14 +12,6 @@ try:
 except ImportError:
     print("WARNING: python-dotenv not installed, .env file will not be loaded. Run: pip install python-dotenv")
 # --- END OF ADDED SECTION ---
-
-# --- Import Official xAI Integration ---
-try:
-    from langchain_xai import ChatXAI
-except ImportError:
-    ChatXAI = None
-    print(
-        "WARNING: Could not import ChatXAI from langchain-xai. Install with: pip install langchain-xai")
 
 # Import configuration details (API keys and arg names)
 from config.settings import API_KEYS, API_KEY_ARG_NAMES, ENABLE_STRICT_MODEL_FILTERING, CUSTOM_EXCLUDE_KEYWORDS
@@ -229,38 +222,41 @@ def get_fallback_xai_models() -> List[Dict[str, Any]]:
     return [model for model in all_models if is_text_model(model["model_name"], 'xai')]
 
 
+# In models/model_loader.py
+
 def fetch_google_models(api_key: str) -> List[Dict[str, Any]]:
     """
-    Dynamically fetch available Google Gemini models from the API.
+    Dynamically fetch available Google Gemini models using the REST API.
+    This approach avoids dependency conflicts with the google-generativeai SDK.
     """
     try:
-        if genai is None:
-            raise ImportError("google-generativeai package not available")
-
-        genai.configure(api_key=api_key)
-
-        models = genai.list_models()
+        # The official REST endpoint for listing models
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        data = response.json()
 
         google_models = []
-        for model in models:
-            model_name = model.name.split('/')[-1] if '/' in model.name else model.name
+        for model_data in data.get("models", []):
+            # The model name is in the format "models/gemini-1.5-pro-latest"
+            model_name = model_data.get("name", "").split('/')[-1]
+            supported_methods = model_data.get("supportedGenerationMethods", [])
 
-            if is_text_model(model_name, 'google') and hasattr(model, 'supported_generation_methods'):
-                supported_methods = [method for method in model.supported_generation_methods]
-                if 'generateContent' in supported_methods:
-                    google_models.append({
-                        "key": f"google/{model_name}",
-                        "model_name": model_name,
-                        "class": ChatGoogleGenerativeAI,
-                        "args": {"temperature": 0.7},
-                        "model_id_key": "model"
-                    })
+            # We only want models that support the standard chat-like generation method
+            if model_name and 'generateContent' in supported_methods and is_text_model(model_name, 'google'):
+                google_models.append({
+                    "key": f"google/{model_name}",
+                    "model_name": model_name,
+                    "class": ChatGoogleGenerativeAI,
+                    "args": {"temperature": 0.7},
+                    "model_id_key": "model"
+                })
 
-        info(f"✅ Fetched {len(google_models)} Google Gemini models dynamically")
+        info(f"✅ Fetched {len(google_models)} Google Gemini models dynamically via REST API")
         return google_models
 
     except Exception as e:
-        error(f"❌ Failed to fetch Google models: {e}")
+        error(f"❌ Failed to fetch Google models via REST API: {e}")
         info("🔄 Falling back to predefined Gemini models")
         return get_fallback_google_models()
 

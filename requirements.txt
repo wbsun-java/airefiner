@@ -1,10 +1,25 @@
-python-dotenv~=1.1.0
-langchain~=0.3.25
-langchain-openai~=0.3.21
+# Core AI and LangChain Framework
+# By listing these, pip will automatically pull in their dependencies
+# like langchain-core, pydantic, aiohttp, etc.
+langchain
+langchain-anthropic
+langchain-google-genai
 langchain-groq
-langchain-google-genai~=2.1.6
-langchain-anthropic~=0.3.15
+langchain-openai
 langchain-xai
-langchain-core~=0.3.64
-langdetect~=1.0.9
 
+# Direct SDKs
+# Only needed if you use these SDKs directly, outside of the LangChain integrations.
+# NOTE: google-generativeai is the source of your previous dependency conflict.
+# If you only use Google models through langchain-google-genai, you can safely remove it.
+openai
+anthropic
+groq
+# google-generativeai
+
+# Utilities
+python-dotenv  # For loading API keys from .env files
+requests       # For making direct HTTP API calls
+tiktoken       # For token counting with OpenAI models
+langdetect     # For language detection features
+tqdm           # For displaying progress bars
