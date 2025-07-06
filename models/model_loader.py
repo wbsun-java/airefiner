@@ -4,6 +4,14 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("INFO: .env file loaded successfully.")
+except ImportError:
+    print("WARNING: python-dotenv not installed, .env file will not be loaded. Run: pip install python-dotenv")
+# --- END OF ADDED SECTION ---
+
 # --- Import Official xAI Integration ---
 try:
     from langchain_xai import ChatXAI
