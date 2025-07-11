@@ -8,6 +8,7 @@ langchain-groq
 langchain-openai
 langchain-xai
 
+
 # Direct SDKs
 # Only needed if you use these SDKs directly, outside of the LangChain integrations.
 # NOTE: google-generativeai is the source of your previous dependency conflict.
@@ -15,7 +16,7 @@ langchain-xai
 openai
 anthropic
 groq
-# google-generativeai
+google-generativeai
 
 # Utilities
 python-dotenv  # For loading API keys from .env files
