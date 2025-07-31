@@ -3,7 +3,8 @@
 # like langchain-core, pydantic, aiohttp, etc.
 langchain
 langchain-anthropic
-langchain-google-genai
+google-generativeai  # For native Google Gemini integration and model discovery
+langchain-google-genai # For LangChain integration with Google models
 langchain-groq
 langchain-openai
 langchain-xai
