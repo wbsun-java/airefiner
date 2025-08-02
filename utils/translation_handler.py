@@ -23,6 +23,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from prompts.translate_prompts import TRANSLATE_EN_TO_ZH_PROMPT, TRANSLATE_ZH_TO_EN_PROMPT
+from prompts.refine_prompts import REFINE_TEXT_PROMPT
 from config.constants import LanguageSupport, LanguageDetection, ConfidenceThresholds
 from utils.logger import LoggerMixin, info
 
@@ -117,9 +118,14 @@ class TranslationHandler(LoggerMixin):
 
         elif detected_lang == 'en':
             # Check for common English patterns
-            english_words = LanguageSupport.COMMON_ENGLISH_WORDS
-            text_lower = text.lower()
-            english_word_count = sum(1 for word in english_words if word in text_lower)
+            # For efficiency, COMMON_ENGLISH_WORDS in LanguageSupport should be a set of lowercase words.
+            common_english_words_set = set(LanguageSupport.COMMON_ENGLISH_WORDS)
+
+            # Tokenize text into words to avoid partial matches (e.g., 'the' in 'there').
+            # This is a simple tokenizer; a more robust one could use regex.
+            text_words = set(text.lower().split())
+
+            english_word_count = len(text_words.intersection(common_english_words_set))
             if english_word_count > 0:
                 pattern_bonus = min(english_word_count / 10, LanguageDetection.MAX_PATTERN_BONUS)
 
@@ -163,7 +169,7 @@ class TranslationHandler(LoggerMixin):
             'source_language': 'unknown',
             'target_language': 'unknown',
             'task_id': 'refine',  # Fallback to refine if can't determine
-            'prompt': '',
+            'prompt': REFINE_TEXT_PROMPT,
             'confidence': confidence,
             'auto_detected': True,
             'detected_code': detected_lang
@@ -197,7 +203,6 @@ class TranslationHandler(LoggerMixin):
             result.update({
                 'source_language': f'Unknown ({detected_lang})',
                 'target_language': 'Refined Text',
-                'task_id': 'refine',
                 'auto_detected': False
             })
 
@@ -231,17 +236,9 @@ class TranslationHandler(LoggerMixin):
         summary = self.get_translation_summary(translation_info, text)
         self.logger.info(f"\n{summary}")
 
-        actual_task_id = translation_info['task_id']
-        self.logger.info(f"Using task: {actual_task_id}")
+        self.logger.info(f"Using task: {translation_info['task_id']}")
 
-        if actual_task_id == 'zh_to_en':
-            return TRANSLATE_ZH_TO_EN_PROMPT
-        elif actual_task_id == 'en_to_zh':
-            return TRANSLATE_EN_TO_ZH_PROMPT
-        else:
-            # Fallback to the standard refine prompt if no translation is needed
-            from prompts.refine_prompts import REFINE_TEXT_PROMPT
-            return REFINE_TEXT_PROMPT
+        return translation_info['prompt']
 
     def get_translation_summary(self, translation_info: Dict[str, Any], text_preview: str = "") -> str:
         """

@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, Tuple
 
 from config.constants import TaskConfiguration
 from models import model_loader
-from utils.error_handler import ErrorHandler, ModelInitializationError, ProcessingError, with_error_handling
+from utils.error_handler import ErrorHandler, ModelInitializationError, ProcessingError, with_error_handling, CircuitBreaker
 from utils.logger import LoggerMixin
 
 
@@ -92,6 +92,7 @@ class TaskProcessor(LoggerMixin):
     def __init__(self, model_manager: ModelManager):
         super().__init__()
         self.model_manager = model_manager
+        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
 
     def execute_task(self, model_key: str, text_input: str, task_id: str) -> str:
         """
@@ -106,6 +107,12 @@ class TaskProcessor(LoggerMixin):
             Result of the task execution
         """
         try:
+            # Get or create a circuit breaker for the selected model
+            if model_key not in self.circuit_breakers:
+                self.logger.info(f"Creating new circuit breaker for model '{model_key}'")
+                self.circuit_breakers[model_key] = CircuitBreaker(name=model_key)
+            circuit_breaker = self.circuit_breakers[model_key]
+
             from langchain_core.prompts import ChatPromptTemplate
             from langchain_core.output_parsers import StrOutputParser
             from utils.translation_handler import TranslationHandler
@@ -136,7 +143,10 @@ class TaskProcessor(LoggerMixin):
             chain = prompt_template | model_instance | output_parser
 
             self.logger.info(f"Executing task '{task_id}' with model '{model_key}'")
-            result = chain.invoke({"user_text": text_input})
+            # Execute the chain through the circuit breaker
+            result = circuit_breaker.call(
+                chain.invoke, {"user_text": text_input}
+            )
             self.logger.info(f"Task execution completed successfully")
 
             return result
