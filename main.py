@@ -144,7 +144,7 @@ class AIRefinerApp(LoggerMixin):
             if self.ui.get_refine_choice():
                 # User wants to refine further, keep current selections
                 return True
-            else:
+        else:
                 # User wants to go back to main menu
                 return False
 
