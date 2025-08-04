@@ -36,66 +36,49 @@ class QwenModelProvider(BaseModelProvider):
         """
         info("🔍 Fetching Qwen models from DashScope compatible mode API...")
         
-        # Make request to models endpoint using compatible mode
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
-        response = requests.get(
-            f"{self.compatible_mode_url}/models", 
-            headers=headers, 
-            timeout=30
-        )
+        try:
+            response = requests.get(
+                f"{self.compatible_mode_url}/models", 
+                headers=headers, 
+                timeout=10
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            warning(f"⚪ Failed to fetch Qwen models: {e}")
+            return []
+
+        data = response.json()
+        qwen_models = []
         
-        if response.status_code == 200:
-            data = response.json()
-            qwen_models = []
-            
-            if 'data' in data:
-                for model_info in data['data']:
-                    model_id = model_info.get('id', '')
-                    
-                    # Filter for text-based models
-                    if self.is_text_model(model_id):
-                        model_def = self.create_model_definition(model_id)
-                        # Add Qwen-specific arguments
-                        model_def["args"].update({
-                            "openai_api_key": self.api_key,
-                            "model_name": model_id,
-                            "base_url": self.compatible_mode_url
-                        })
-                        qwen_models.append(model_def)
-            
-            info(f"✅ Fetched {len(qwen_models)} Qwen models dynamically")
-            return qwen_models
-        else:
-            warning(f"⚪ Failed to fetch Qwen models: {response.status_code} - {response.text}")
-            return self.get_fallback_models()
+        if 'data' in data:
+            for model_info in data['data']:
+                model_id = model_info.get('id', '')
+                
+                if self.is_text_model(model_id):
+                    model_def = self.create_model_definition(model_id)
+                    model_def["args"].update({
+                        "openai_api_key": self.api_key,
+                        "model_name": model_id,
+                        "base_url": self.compatible_mode_url
+                    })
+                    qwen_models.append(model_def)
+        
+        info(f"✅ Fetched {len(qwen_models)} Qwen models dynamically")
+        return qwen_models
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
         """
         Get fallback Qwen models when API fetching fails.
         
         Returns:
-            List of predefined Qwen model dictionaries
+            An empty list, as dynamic fetching is preferred.
         """
-        fallback_models = [
-            self.create_model_definition("qwen-turbo", "Qwen Turbo"),
-            self.create_model_definition("qwen-plus", "Qwen Plus"),
-            self.create_model_definition("qwen-max", "Qwen Max"),
-            self.create_model_definition("qwen-max-longcontext", "Qwen Max Long Context"),
-        ]
-        
-        # Add Qwen-specific arguments to fallback models
-        for model in fallback_models:
-            model["args"].update({
-                "openai_api_key": self.api_key,
-                "model_name": model["model_name"],
-                "base_url": self.compatible_mode_url
-            })
-        
-        return fallback_models
+        return []
 
     def get_model_class(self):
         """
