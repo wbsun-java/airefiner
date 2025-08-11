@@ -30,7 +30,8 @@ except ImportError:
         "WARNING: Could not import ChatXAI from langchain-xai. Install with: pip install langchain-xai")
 
 # Import configuration details (API keys and arg names)
-from config.settings import API_KEYS, API_KEY_ARG_NAMES, ENABLE_STRICT_MODEL_FILTERING, CUSTOM_EXCLUDE_KEYWORDS
+from config.config_manager import get_config
+from config.settings import ENABLE_STRICT_MODEL_FILTERING, CUSTOM_EXCLUDE_KEYWORDS
 
 # Import for dynamic model fetching
 from openai import OpenAI
@@ -398,17 +399,17 @@ def get_fallback_groq_models() -> List[Dict[str, Any]]:
     Fallback Groq models if dynamic fetching fails.
     """
     all_models = [
-        {"key": "groq/llama-3.3-70b-versatile", "model_name": "llama-3.3-70b-versatile",
+        {"key": "groq/llama-3.1-70b-versatile", "model_name": "llama-3.1-70b-versatile",
          "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
         {"key": "groq/llama-3.1-8b-instant", "model_name": "llama-3.1-8b-instant",
          "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/gemma2-9b-it", "model_name": "gemma2-9b-it",
-         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/qwen-qwq-32b", "model_name": "qwen-qwq-32b",
-         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
-        {"key": "groq/deepseek-r1-distill-llama-70b", "model_name": "deepseek-r1-distill-llama-70b",
-         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
         {"key": "groq/llama3-70b-8192", "model_name": "llama3-70b-8192",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/llama3-8b-8192", "model_name": "llama3-8b-8192",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/mixtral-8x7b-32768", "model_name": "mixtral-8x7b-32768",
+         "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
+        {"key": "groq/gemma2-9b-it", "model_name": "gemma2-9b-it",
          "class": ChatGroq, "args": {"temperature": 0.7}, "model_id_key": "model_name"},
     ]
     return [model for model in all_models if is_text_model(model["model_name"], 'groq')]
@@ -430,7 +431,7 @@ def fetch_qwen_models(api_key: str) -> List[Dict[str, Any]]:
         info("🔍 Fetching Qwen models using native provider...")
         
         # Create Qwen provider instance
-        provider = QwenModelProvider(api_key)
+        provider = QwenModelProvider(api_key=api_key)
         
         # Fetch models using the provider
         qwen_models = provider.fetch_models()
@@ -440,27 +441,8 @@ def fetch_qwen_models(api_key: str) -> List[Dict[str, Any]]:
             
     except Exception as e:
         error(f"❌ Failed to fetch Qwen models: {e}")
-        info("🔄 Falling back to predefined Qwen models")
-        return get_fallback_qwen_models()
-
-
-def get_fallback_qwen_models() -> List[Dict[str, Any]]:
-    """
-    Fallback Qwen models if dynamic fetching fails.
-    """
-    base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    
-    all_models = [
-        {"key": "qwen/qwen-turbo", "model_name": "qwen-turbo",
-         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
-        {"key": "qwen/qwen-plus", "model_name": "qwen-plus",
-         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
-        {"key": "qwen/qwen-max", "model_name": "qwen-max",
-         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
-        {"key": "qwen/qwen-max-longcontext", "model_name": "qwen-max-longcontext",
-         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
-    ]
-    return [model for model in all_models if is_text_model(model["model_name"], 'qwen')]
+        info("🔄 Falling back to an empty list as fallback models are deprecated.")
+        return []
 
 
 def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
@@ -497,6 +479,9 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
     if _model_cache and (current_time - _cache_timestamp) < CacheConfig.DURATION_SECONDS:
         info("📋 Using cached model definitions")
         return _model_cache
+
+    config = get_config()
+    API_KEYS = config.api_config.get_api_keys()
 
     openai_models = []
     if API_KEYS.get("openai"):
@@ -538,7 +523,7 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
         qwen_models = fetch_qwen_models(API_KEYS["qwen"])
     else:
         warning("⚪ Qwen API key not found, using fallback models")
-        qwen_models = get_fallback_qwen_models()
+        qwen_models = []
 
     model_definitions = {
         "openai": openai_models,
@@ -586,6 +571,10 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
 
     info("\n--- Initializing Models (from models/model_loader.py) ---")
 
+    config = get_config()
+    API_KEYS = config.api_config.get_api_keys()
+    API_KEY_ARG_NAMES = config.api_config.api_key_arg_names
+
     MODEL_DEFINITIONS = get_model_definitions()
 
     for provider, model_list in MODEL_DEFINITIONS.items():
@@ -593,9 +582,9 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
         api_key_arg_name = API_KEY_ARG_NAMES.get(provider)
 
         if not api_key_arg_name:
-            warning(f"\n⚠️ Skipping provider '{provider}': Not configured in config/settings.py (API_KEY_ARG_NAMES).")
+            warning(f"\n⚠️ Skipping provider '{provider}': Not configured in config_manager.py (api_key_arg_names).")
             for model_def in model_list:
-                initialization_errors[model_def["key"]] = f"Provider '{provider}' not configured in API_KEY_ARG_NAMES."
+                initialization_errors[model_def["key"]] = f"Provider '{provider}' not configured in api_key_arg_names."
             continue
 
         if provider == "xai" and ChatXAI is None:

@@ -1,5 +1,4 @@
 import os
-# from dotenv import load_dotenv # No longer needed here, main.py loads it
 
 # The .env file is loaded by main.py using load_dotenv()
 # So os.getenv will work here.
@@ -21,7 +20,7 @@ API_KEY_ARG_NAMES = {
     "google": "google_api_key", # For ChatGoogleGenerativeAI, it's 'google_api_key'
     "anthropic": "anthropic_api_key",
     "xai": "xai_api_key",  # Official ChatXAI parameter name
-    "qwen": "openai_api_key",  # Qwen uses OpenAI-compatible interface
+    "qwen": "qwen_api_key",  # The QwenChatWrapper expects 'qwen_api_key'
 }
 
 print("config/settings.py: API Key mapping complete.")
@@ -46,7 +45,3 @@ CUSTOM_EXCLUDE_KEYWORDS = [
     # Add any custom keywords you want to exclude
     # 'keyword1', 'keyword2'
 ]
-
-# You can add other application-wide, non-sensitive configurations here
-# DEFAULT_TEMPERATURE = 0.7
-# MAX_RETRIES = 3

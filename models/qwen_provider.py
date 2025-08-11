@@ -9,6 +9,28 @@ from models.base_model_provider import BaseModelProvider
 from config.constants import ModelFiltering
 from utils.logger import info, warning, error
 
+# Define a wrapper class to handle Qwen's API key while using ChatOpenAI
+try:
+    from langchain_openai import ChatOpenAI
+
+    class QwenChatWrapper(ChatOpenAI):
+        """
+        A wrapper for ChatOpenAI to use Qwen's compatible API.
+        It explicitly accepts 'qwen_api_key' and passes it to the underlying
+        ChatOpenAI class as 'openai_api_key'.
+        """
+        def __init__(self, qwen_api_key: str = None, **kwargs: Any):
+            if not qwen_api_key:
+                raise ValueError("Qwen provider requires a 'qwen_api_key', but none was provided.")
+            
+            # The super class (ChatOpenAI) always expects 'openai_api_key'.
+            # We pass the qwen_api_key to it under that name.
+            super().__init__(openai_api_key=qwen_api_key, **kwargs)
+
+except ImportError:
+    # If langchain_openai is not installed, create a dummy class
+    QwenChatWrapper = None
+
 
 class QwenModelProvider(BaseModelProvider):
     """
@@ -24,7 +46,6 @@ class QwenModelProvider(BaseModelProvider):
             provider_name: Name of the provider (defaults to 'qwen')
         """
         super().__init__(api_key, provider_name)
-        self.base_url = "https://dashscope.aliyuncs.com/api/v1"
         self.compatible_mode_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 
     def fetch_models(self) -> List[Dict[str, Any]]:
@@ -61,8 +82,9 @@ class QwenModelProvider(BaseModelProvider):
                 
                 if self.is_text_model(model_id):
                     model_def = self.create_model_definition(model_id)
+                    # We do not add the API key here; the legacy model loader injects it.
+                    # The QwenChatWrapper is designed to handle the injected key.
                     model_def["args"].update({
-                        "openai_api_key": self.api_key,
                         "model_name": model_id,
                         "base_url": self.compatible_mode_url
                     })
@@ -85,13 +107,11 @@ class QwenModelProvider(BaseModelProvider):
         Get the LangChain model class for Qwen provider.
         
         Returns:
-            The Qwen chat model class (using OpenAI-compatible interface)
+            The QwenChatWrapper class that handles API key mapping.
         """
-        try:
-            from langchain_openai import ChatOpenAI
-            return ChatOpenAI
-        except ImportError:
-            return None
+        if QwenChatWrapper is None:
+            warning("langchain_openai is not installed. Please install it to use Qwen models.")
+        return QwenChatWrapper
 
     def get_model_id_key(self) -> str:
         """
