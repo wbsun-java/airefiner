@@ -140,7 +140,7 @@ if __name__ == "__main__":
     if basic_ok and project_ok and filtering_ok:
         print(f"\n🎉 🎉 🎉 INSTALLATION TEST PASSED! 🎉 🎉 🎉")
         print("Your AIRefiner is ready to run with:")
-        print("✅ Dynamic model fetching from all 5 providers")
+        print("✅ Dynamic model fetching from all 6 providers")
         print("✅ Enhanced intelligent model filtering")
         print("✅ All dependencies properly installed")
         print("\nYou can now run: python main.py")

@@ -5,11 +5,11 @@ and automatic language detection.
 
 ## 🚀 Features
 
-- **🤖 Dynamic Model Fetching**: Automatically pulls latest models from OpenAI, xAI, Google, Anthropic, and Groq
+- **🤖 Dynamic Model Fetching**: Automatically pulls latest models from OpenAI, xAI, Google, Anthropic, Groq, and Alibaba Qwen
 - **📋 Grouped Model Display**: Models organized by company/provider for easy selection
 - **🔍 Intelligent Filtering**: Excludes image/video/audio models, showing only text-focused models
 - **🌐 Auto-Translation**: Automatic language detection with intelligent translation (English ↔ Chinese)
-- **⚡ Multi-Provider Support**: Works with 5 major AI providers
+- **⚡ Multi-Provider Support**: Works with 6 major AI providers
 - **🏗️ Clean Architecture**: Separation of concerns with UI, business logic, and configuration layers
 - **📊 Comprehensive Testing**: Full test suite with 95%+ coverage
 - **💾 Caching System**: 1-hour cache to optimize API calls
@@ -93,6 +93,8 @@ airefiner/
 pip install -r requirements.txt
 ```
 
+
+
 ### 2. Create `.env` file with your API keys:
 
 ```env
@@ -102,6 +104,7 @@ GROQ_API_KEY=your_groq_key_here
 GOOGLE_API_KEY=your_google_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
 XAI_API_KEY=your_xai_key_here
+QWEN_API_KEY=your_qwen_key_here
 ```
 
 ### 3. Verify installation:

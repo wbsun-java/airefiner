@@ -4,6 +4,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
+# --- Import Qwen Integration ---
+try:
+    from langchain_openai import ChatOpenAI as ChatQwen
+except ImportError:
+    ChatQwen = None
+    print("WARNING: Could not import ChatOpenAI for Qwen integration")
+
+
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -48,6 +57,8 @@ try:
 except ImportError:
     Groq = None
     print("WARNING: groq not available for dynamic Groq model fetching")
+
+
 
 import requests
 
@@ -403,9 +414,58 @@ def get_fallback_groq_models() -> List[Dict[str, Any]]:
     return [model for model in all_models if is_text_model(model["model_name"], 'groq')]
 
 
+def fetch_qwen_models(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Fetch available Qwen models using the native Qwen provider.
+    
+    Args:
+        api_key: Qwen API key for authentication
+        
+    Returns:
+        List of model definition dictionaries
+    """
+    try:
+        from models.qwen_provider import QwenModelProvider
+        
+        info("🔍 Fetching Qwen models using native provider...")
+        
+        # Create Qwen provider instance
+        provider = QwenModelProvider(api_key)
+        
+        # Fetch models using the provider
+        qwen_models = provider.fetch_models()
+        
+        info(f"✅ Fetched {len(qwen_models)} Qwen models dynamically")
+        return qwen_models
+            
+    except Exception as e:
+        error(f"❌ Failed to fetch Qwen models: {e}")
+        info("🔄 Falling back to predefined Qwen models")
+        return get_fallback_qwen_models()
+
+
+def get_fallback_qwen_models() -> List[Dict[str, Any]]:
+    """
+    Fallback Qwen models if dynamic fetching fails.
+    """
+    base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    
+    all_models = [
+        {"key": "qwen/qwen-turbo", "model_name": "qwen-turbo",
+         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
+        {"key": "qwen/qwen-plus", "model_name": "qwen-plus",
+         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
+        {"key": "qwen/qwen-max", "model_name": "qwen-max",
+         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
+        {"key": "qwen/qwen-max-longcontext", "model_name": "qwen-max-longcontext",
+         "class": ChatQwen, "args": {"temperature": 0.7, "base_url": base_url, "openai_api_key": ""}, "model_id_key": "model_name"},
+    ]
+    return [model for model in all_models if is_text_model(model["model_name"], 'qwen')]
+
+
 def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
     """
-    Get model definitions with dynamic fetching for OpenAI, xAI, Google, Anthropic, and Groq models.
+    Get model definitions with dynamic fetching for OpenAI, xAI, Google, Anthropic, Groq, and Qwen models.
     
     This function fetches available models from each provider's API and caches the results
     to avoid frequent API calls. If API calls fail, it falls back to predefined model lists.
@@ -426,7 +486,7 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
     Example:
         >>> definitions = get_model_definitions()
         >>> definitions.keys()
-        dict_keys(['openai', 'groq', 'google', 'anthropic', 'xai'])
+        dict_keys(['openai', 'groq', 'google', 'anthropic', 'xai', 'qwen'])
         >>> len(definitions['openai'])
         4
     """
@@ -473,12 +533,20 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
         warning("⚪ Groq API key not found, using fallback models")
         groq_models = get_fallback_groq_models()
 
+    qwen_models = []
+    if API_KEYS.get("qwen"):
+        qwen_models = fetch_qwen_models(API_KEYS["qwen"])
+    else:
+        warning("⚪ Qwen API key not found, using fallback models")
+        qwen_models = get_fallback_qwen_models()
+
     model_definitions = {
         "openai": openai_models,
         "groq": groq_models,
         "google": google_models,
         "anthropic": anthropic_models,
         "xai": xai_models,
+        "qwen": qwen_models,
     }
 
     _model_cache = model_definitions
@@ -535,6 +603,14 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
             for model_def in model_list:
                 initialization_errors[model_def["key"]] = "ChatXAI class not available. Install langchain-xai package."
             continue
+
+        if provider == "qwen" and ChatQwen is None:
+            warning(f"\n⚪ Skipping Qwen models: ChatQwen class not imported.")
+            for model_def in model_list:
+                initialization_errors[model_def["key"]] = "ChatQwen class not available."
+            continue
+
+
 
         if not api_key:
             warning(

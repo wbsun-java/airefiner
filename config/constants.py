@@ -13,6 +13,7 @@ class ModelProvider(Enum):
     GOOGLE = "google"
     GROQ = "groq"
     XAI = "xai"
+    QWEN = "qwen"
 
 
 class CacheConfig:
@@ -93,7 +94,8 @@ class ModelFiltering:
         ModelProvider.GOOGLE.value: ['bison', 'gecko', 'otter', 'unicorn'],  # Legacy/specialized Gemini models
         ModelProvider.ANTHROPIC.value: [],  # Claude models are generally text-focused
         ModelProvider.GROQ.value: ['whisper', 'distil-whisper'],  # Audio transcription models
-        ModelProvider.XAI.value: []  # Grok models are generally text-focused
+        ModelProvider.XAI.value: [],  # Grok models are generally text-focused
+        ModelProvider.QWEN.value: []  # Qwen models are generally text-focused
     }
 
     # Text model indicators

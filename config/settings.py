@@ -12,6 +12,7 @@ API_KEYS = {
     "google": os.getenv('GOOGLE_API_KEY'),
     "anthropic": os.getenv('ANTHROPIC_API_KEY'),
     "xai": os.getenv('XAI_API_KEY'),
+    "qwen": os.getenv('QWEN_API_KEY'),
 }
 
 API_KEY_ARG_NAMES = {
@@ -20,6 +21,7 @@ API_KEY_ARG_NAMES = {
     "google": "google_api_key", # For ChatGoogleGenerativeAI, it's 'google_api_key'
     "anthropic": "anthropic_api_key",
     "xai": "xai_api_key",  # Official ChatXAI parameter name
+    "qwen": "openai_api_key",  # Qwen uses OpenAI-compatible interface
 }
 
 print("config/settings.py: API Key mapping complete.")
