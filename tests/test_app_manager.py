@@ -20,6 +20,7 @@ class TestAppState:
         assert state.selected_model is None
         assert state.selected_task is None
         assert state.last_result is None
+        assert state.last_result_task_id is None
         assert state.should_exit is False
         assert state.initialized_models == {}
         assert state.initialization_errors == {}
@@ -296,6 +297,7 @@ class TestApplicationManager:
 
             assert result == "Processed text"
             assert app_manager.app_state.last_result == "Processed text"
+            assert app_manager.app_state.last_result_task_id == "refine"
             mock_execute.assert_called_once_with('test_model', 'test input', 'refine')
 
     def test_process_text_processing_error(self, app_manager):
@@ -371,6 +373,28 @@ class TestApplicationManager:
 
         assert app_manager.can_use_previous_result() is False
 
+    def test_can_use_previous_result_false_different_task(self, app_manager):
+        """Test can_use_previous_result returns False when task has changed."""
+        # Set up previous result from refine task
+        app_manager.app_state.last_result = "Previous result"
+        app_manager.app_state.last_result_task_id = "refine"
+        
+        # Now user selects a different task
+        app_manager.app_state.selected_task = {'id': 'auto_translate'}
+
+        assert app_manager.can_use_previous_result() is False
+
+    def test_can_use_previous_result_true_same_task(self, app_manager):
+        """Test can_use_previous_result returns True when same task continues."""
+        # Set up previous result from refine task
+        app_manager.app_state.last_result = "Previous result"
+        app_manager.app_state.last_result_task_id = "refine"
+        
+        # User continues with same task
+        app_manager.app_state.selected_task = {'id': 'refine'}
+
+        assert app_manager.can_use_previous_result() is True
+
     def test_get_previous_result(self, app_manager):
         """Test getting previous result."""
         app_manager.app_state.last_result = "Previous result"
@@ -406,3 +430,14 @@ class TestApplicationManager:
 
         app_manager.app_state.should_exit = True
         assert app_manager.should_exit() is True
+
+    def test_clear_previous_result(self, app_manager):
+        """Test clearing previous result."""
+        # Set up some previous result
+        app_manager.app_state.last_result = "Previous result"
+        app_manager.app_state.last_result_task_id = "refine"
+
+        app_manager.clear_previous_result()
+
+        assert app_manager.app_state.last_result is None
+        assert app_manager.app_state.last_result_task_id is None

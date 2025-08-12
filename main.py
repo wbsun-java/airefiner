@@ -80,6 +80,7 @@ class AIRefinerApp(LoggerMixin):
                     # User chose to go back to main menu
                     self.app_manager.reset_model_selection()
                     self.app_manager.reset_task_selection()
+                    self.app_manager.clear_previous_result()  # Clear previous result when starting fresh
 
             except KeyboardInterrupt:
                 self.ui.display_warning("Operation cancelled by user")
@@ -90,6 +91,7 @@ class AIRefinerApp(LoggerMixin):
                 # Reset state on error
                 self.app_manager.reset_model_selection()
                 self.app_manager.reset_task_selection()
+                self.app_manager.clear_previous_result()
 
     def _handle_model_selection(self) -> str:
         """

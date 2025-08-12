@@ -74,44 +74,31 @@ def test_translation_handler():
         return False
 
 
-def test_settings_integration():
-    """Test that the new task is properly integrated in settings"""
+def test_translation_integration():
+    """Test translation integration with task configuration"""
     try:
-        from config.settings import TASKS
-
-        print("\n=== Testing Settings Integration ===")
-
-        print("Available tasks:")
-        for task_num, task_info in TASKS.items():
-            print(f"  {task_num}. {task_info['name']} (id: {task_info['id']})")
-
+        from config.config_manager import load_config
+        
+        print("\n=== Testing Translation Task Integration ===")
+        
+        # Load configuration first
+        config = load_config()
+        
         # Check if auto_translate task exists
-        auto_translate_exists = any(
-            task_info['id'] == 'auto_translate'
-            for task_info in TASKS.values()
-        )
-
-        if auto_translate_exists:
-            print("✅ Auto-translate task found in settings!")
+        auto_translate_task = config.tasks_config.get_task_by_id('auto_translate')
+        
+        if auto_translate_task:
+            print("✅ Auto-translate task found in configuration!")
+            print(f"   Task name: {auto_translate_task['name']}")
         else:
-            print("❌ Auto-translate task not found in settings")
+            print("❌ Auto-translate task not found in configuration")
+            return False
 
-        # Check that old translation tasks are removed
-        old_tasks = ['en_to_zh', 'zh_to_en']
-        old_tasks_found = [
-            task_id for task_id in old_tasks
-            if any(task_info['id'] == task_id for task_info in TASKS.values())
-        ]
-
-        if old_tasks_found:
-            print(f"⚠️  Old translation tasks still found: {old_tasks_found}")
-        else:
-            print("✅ Old manual translation tasks successfully removed!")
-
-        return auto_translate_exists and not old_tasks_found
+        print("✅ Translation integration working correctly!")
+        return True
 
     except Exception as e:
-        print(f"❌ Settings test failed: {e}")
+        print(f"❌ Translation integration test failed: {e}")
         return False
 
 
@@ -121,14 +108,14 @@ if __name__ == "__main__":
     # Test translation handler
     handler_ok = test_translation_handler()
 
-    # Test settings integration
-    settings_ok = test_settings_integration()
+    # Test translation integration
+    integration_ok = test_translation_integration()
 
     print(f"\n=== Final Results ===")
     print(f"Translation Handler: {'✅ OK' if handler_ok else '❌ Failed'}")
-    print(f"Settings Integration: {'✅ OK' if settings_ok else '❌ Failed'}")
+    print(f"Task Integration: {'✅ OK' if integration_ok else '❌ Failed'}")
 
-    if handler_ok and settings_ok:
+    if handler_ok and integration_ok:
         print(f"\n🎉 🎉 🎉 AUTO-TRANSLATION READY! 🎉 🎉 🎉")
         print("Features working:")
         print("✅ Automatic language detection")

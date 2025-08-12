@@ -17,6 +17,7 @@ class AppState:
         self.selected_model: Optional[str] = None
         self.selected_task: Optional[Dict[str, Any]] = None
         self.last_result: Optional[str] = None
+        self.last_result_task_id: Optional[str] = None  # Track which task generated the last result
         self.should_exit: bool = False
         self.initialized_models: Dict[str, Any] = {}
         self.initialization_errors: Dict[str, str] = {}
@@ -218,17 +219,20 @@ class ApplicationManager(LoggerMixin):
             )
 
             self.app_state.last_result = result
+            self.app_state.last_result_task_id = self.app_state.selected_task['id']  # Track which task generated this result
             return result
 
         except ProcessingError as e:
             error_handler = ErrorHandler()
             error_msg = error_handler.handle_error(e, "Text processing")
             self.app_state.last_result = None
+            self.app_state.last_result_task_id = None  # Clear task ID on error
             return f"Error: {error_msg}"
         except Exception as e:
             error_handler = ErrorHandler()
             error_msg = error_handler.handle_error(e, "Text processing")
             self.app_state.last_result = None
+            self.app_state.last_result_task_id = None  # Clear task ID on error
             return f"Unexpected error: {error_msg}"
 
     def should_refine_further(self) -> bool:
@@ -240,7 +244,8 @@ class ApplicationManager(LoggerMixin):
     def can_use_previous_result(self) -> bool:
         """Check if the previous result can be used as input."""
         return (self.app_state.selected_task and
-                self.app_state.last_result is not None)
+                self.app_state.last_result is not None and
+                self.app_state.last_result_task_id == self.app_state.selected_task['id'])
 
     def get_previous_result(self) -> Optional[str]:
         """Get the previous result."""
@@ -253,6 +258,11 @@ class ApplicationManager(LoggerMixin):
     def reset_task_selection(self):
         """Reset task selection."""
         self.app_state.selected_task = None
+
+    def clear_previous_result(self):
+        """Clear previous result when starting a new task."""
+        self.app_state.last_result = None
+        self.app_state.last_result_task_id = None
 
     def exit_application(self):
         """Signal application exit."""

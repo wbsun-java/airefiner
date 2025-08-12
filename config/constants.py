@@ -85,7 +85,9 @@ class ModelFiltering:
         # Security/Guard models
         'guard', 'guardian', 'safety-model',
         # Legacy/Edit models
-        'edit', 'davinci-edit', 'curie-edit'
+        'edit', 'davinci-edit', 'curie-edit',
+        # Specialized/Real-time models (not suitable for text refinement)
+        'realtime', 'real-time', 'search', 'transcribe', 'transcription'
     ]
 
     # Provider-specific exclusions

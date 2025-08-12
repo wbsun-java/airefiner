@@ -91,29 +91,62 @@ def test_model_filtering():
     try:
         from models.model_loader import is_text_model
 
-        # Test cases that should work
+        # Comprehensive test cases
         test_cases = [
+            # ✅ SHOULD BE INCLUDED - Core text models
             ("gpt-4o", "openai", True),
             ("claude-3-5-sonnet", "anthropic", True),
-            ("llama-guard-7b", "groq", False),  # Should be filtered
-            ("text-davinci-edit-001", "openai", False),  # Should be filtered
-            ("dall-e-3", "openai", False),  # Should be filtered
+            ("gemini-1.5-pro", "google", True),
+            ("llama-3.1-8b-instruct", "groq", True),
+            ("grok-beta", "xai", True),
+            
+            # ❌ SHOULD BE EXCLUDED - The critical failing cases
+            ("llama-guard-7b", "groq", False),  # Security/Guard model
+            ("text-davinci-edit-001", "openai", False),  # Legacy edit model
+            
+            # ❌ SHOULD BE EXCLUDED - Image/Vision models
+            ("dall-e-3", "openai", False),
+            ("gpt-4-vision-preview", "openai", False),
+            ("gemini-pro-vision", "google", False),
+            
+            # ❌ SHOULD BE EXCLUDED - Audio models
+            ("whisper-1", "openai", False),
+            ("whisper-large-v3", "groq", False),
+            ("tts-1", "openai", False),
+            
+            # ❌ SHOULD BE EXCLUDED - Embedding models
+            ("text-embedding-ada-002", "openai", False),
+            ("text-embedding-3-small", "openai", False),
+            
+            # ❌ SHOULD BE EXCLUDED - Code models
+            ("code-davinci-002", "openai", False),
+            ("codex", "openai", False),
+            
+            # ❌ SHOULD BE EXCLUDED - Safety/Moderation
+            ("content-moderation-stable", "openai", False),
+            ("safety-classifier", "anthropic", False),
         ]
 
-        all_passed = True
+        passed = 0
+        failed = 0
+        
         for model_name, provider, expected in test_cases:
             result = is_text_model(model_name, provider)
             status = "✅" if result == expected else "❌"
-            print(f"{status} {model_name:25} -> {result} (expected {expected})")
-            if result != expected:
-                all_passed = False
+            print(f"{status} {model_name:30} -> {result} (expected {expected})")
+            if result == expected:
+                passed += 1
+            else:
+                failed += 1
 
-        if all_passed:
-            print("\n🎉 Model filtering is working correctly!")
+        print(f"\n📊 Filtering Results: {passed} passed, {failed} failed")
+        
+        if failed == 0:
+            print("🎉 Model filtering is working perfectly!")
         else:
-            print("\n⚠️  Some filtering tests failed.")
+            print("⚠️  Some filtering tests failed.")
 
-        return all_passed
+        return failed == 0
 
     except Exception as e:
         print(f"❌ Model filtering test failed: {e}")

@@ -118,11 +118,8 @@ def main():
 
     tests = [
         ("tests/test_installation.py", "Installation & Dependencies Test"),
-        ("tests/test_comprehensive_filtering.py", "Model Filtering Test"),
         ("tests/test_auto_translation.py", "Auto-Translation Feature Test"),
-        ("tests/test_groq.py", "Groq Provider Test"),
-        ("tests/test_anthropic.py", "Anthropic Provider Test"),
-        ("tests/test_gemini.py", "Google Gemini Provider Test"),
+        ("tests/test_providers.py", "AI Provider Integration Test"),
     ]
 
     passed = 0
