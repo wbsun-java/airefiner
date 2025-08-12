@@ -234,14 +234,12 @@ class ApplicationManager(LoggerMixin):
     def should_refine_further(self) -> bool:
         """Check if the user can refine the result further."""
         return (self.app_state.selected_task and
-                self.app_state.selected_task['id'] == TaskConfiguration.REFINE and
                 self.app_state.last_result and
                 "Error" not in self.app_state.last_result)
 
     def can_use_previous_result(self) -> bool:
         """Check if the previous result can be used as input."""
         return (self.app_state.selected_task and
-                self.app_state.selected_task['id'] == TaskConfiguration.REFINE and
                 self.app_state.last_result is not None)
 
     def get_previous_result(self) -> Optional[str]:

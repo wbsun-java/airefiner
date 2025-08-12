@@ -244,10 +244,10 @@ class InputHandler(LoggerMixin):
             User input text or None if cancelled
         """
         if can_use_previous and previous_result:
-            choice = input("Refine the previous result? (y/n) [y]: ").strip().lower()
+            choice = input("Improve the previous result? (y/n) [y]: ").strip().lower()
             if choice in ('y', ''):
                 self.menu_manager.display_status_message(
-                    "Using previous result as input", "info"
+                    "Using previous result as input for further improvement", "info"
                 )
                 print("\n--- Previous Result ---")
                 print(previous_result)
@@ -265,13 +265,14 @@ class InputHandler(LoggerMixin):
 
     def get_refine_choice(self) -> bool:
         """
-        Ask user if they want to refine further.
+        Ask user if they want to refine/improve the result further.
+        Now works for all task types (refine, presentation, translation).
         
         Returns:
             True if user wants to refine further, False otherwise
         """
         print("\n--- Options ---")
-        print("1. Refine this result further")
+        print("1. Improve this result further")
         print("2. Back to main menu")
 
         choice = input("Enter choice [2]: ").strip()

@@ -315,19 +315,26 @@ class TestApplicationManager:
             assert "Error: Error message" in result
             assert app_manager.app_state.last_result is None
 
-    def test_should_refine_further_true(self, app_manager):
-        """Test should_refine_further returns True when conditions met."""
+    def test_should_refine_further_true_refine_task(self, app_manager):
+        """Test should_refine_further returns True for refine task when conditions met."""
         app_manager.app_state.selected_task = {'id': 'refine'}
         app_manager.app_state.last_result = "Some result"
 
         assert app_manager.should_refine_further() is True
 
-    def test_should_refine_further_false_wrong_task(self, app_manager):
-        """Test should_refine_further returns False for non-refine task."""
+    def test_should_refine_further_true_translate_task(self, app_manager):
+        """Test should_refine_further returns True for translate task (now supported)."""
         app_manager.app_state.selected_task = {'id': 'translate'}
         app_manager.app_state.last_result = "Some result"
 
-        assert app_manager.should_refine_further() is False
+        assert app_manager.should_refine_further() is True
+
+    def test_should_refine_further_true_presentation_task(self, app_manager):
+        """Test should_refine_further returns True for presentation task (now supported)."""
+        app_manager.app_state.selected_task = {'id': 'refine_presentation'}
+        app_manager.app_state.last_result = "Some result"
+
+        assert app_manager.should_refine_further() is True
 
     def test_should_refine_further_false_error_result(self, app_manager):
         """Test should_refine_further returns False when result contains error."""
@@ -336,9 +343,23 @@ class TestApplicationManager:
 
         assert app_manager.should_refine_further() is False
 
-    def test_can_use_previous_result_true(self, app_manager):
-        """Test can_use_previous_result returns True when conditions met."""
+    def test_can_use_previous_result_true_refine_task(self, app_manager):
+        """Test can_use_previous_result returns True for refine task when conditions met."""
         app_manager.app_state.selected_task = {'id': 'refine'}
+        app_manager.app_state.last_result = "Previous result"
+
+        assert app_manager.can_use_previous_result() is True
+
+    def test_can_use_previous_result_true_translate_task(self, app_manager):
+        """Test can_use_previous_result returns True for translate task (now supported)."""
+        app_manager.app_state.selected_task = {'id': 'auto_translate'}
+        app_manager.app_state.last_result = "Previous result"
+
+        assert app_manager.can_use_previous_result() is True
+
+    def test_can_use_previous_result_true_presentation_task(self, app_manager):
+        """Test can_use_previous_result returns True for presentation task (now supported)."""
+        app_manager.app_state.selected_task = {'id': 'refine_presentation'}
         app_manager.app_state.last_result = "Previous result"
 
         assert app_manager.can_use_previous_result() is True
