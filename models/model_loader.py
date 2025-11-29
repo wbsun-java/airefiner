@@ -251,7 +251,20 @@ def fetch_google_models(api_key: str) -> List[Dict[str, Any]]:
 
         genai.configure(api_key=api_key)
 
-        models = genai.list_models()
+        # Retry logic for fetching models
+        max_retries = 3
+        models = []
+        for attempt in range(max_retries):
+            try:
+                # Convert to list to trigger the API call immediately
+                models = list(genai.list_models())
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    warning(f"⚠️ Attempt {attempt + 1} failed to fetch Google models: {e}. Retrying...")
+                    time.sleep(2)
+                else:
+                    raise e
 
         google_models = []
         for model in models:
