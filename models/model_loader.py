@@ -107,6 +107,12 @@ def is_text_model(model_id: str, provider: str = "") -> bool:
     # Common non-text keywords from configuration
     non_text_keywords = ModelFiltering.NON_TEXT_KEYWORDS.copy()
 
+    # Ensure mandatory non-text keywords are included (image, robot, etc.)
+    mandatory_exclusions = ["image", "robot", "audio", "video", "embedding", "moderation"]
+    for kw in mandatory_exclusions:
+        if kw not in non_text_keywords:
+            non_text_keywords.append(kw)
+
     # Add custom exclude keywords from settings
     non_text_keywords.extend([keyword.lower() for keyword in CUSTOM_EXCLUDE_KEYWORDS])
 
@@ -434,7 +440,10 @@ def fetch_qwen_models(api_key: str) -> List[Dict[str, Any]]:
         provider = QwenModelProvider(api_key=api_key)
         
         # Fetch models using the provider
-        qwen_models = provider.fetch_models()
+        raw_models = provider.fetch_models()
+        
+        # Apply local text model filtering to ensure consistency
+        qwen_models = [m for m in raw_models if is_text_model(m["model_name"], "qwen")]
         
         info(f"✅ Fetched {len(qwen_models)} Qwen models dynamically")
         return qwen_models

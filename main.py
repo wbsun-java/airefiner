@@ -141,7 +141,7 @@ class AIRefinerApp(LoggerMixin):
         Returns:
             True to continue with current selections, False to reset to main menu
         """
-        # Check if user can refine further (now available for all tasks)
+        # Check if user can refine further (now available for all tasks)py
         if self.app_manager.should_refine_further():
             if self.ui.get_refine_choice():
                 # User wants to refine further, keep current selections
