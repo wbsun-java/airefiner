@@ -110,6 +110,10 @@ def is_text_model(model_id: str, provider: str = "") -> bool:
     # Add custom exclude keywords from settings
     non_text_keywords.extend([keyword.lower() for keyword in CUSTOM_EXCLUDE_KEYWORDS])
 
+    # Explicitly exclude non-text models (image, video, robot, audio, etc.)
+    strict_non_text_keywords = ['image', 'video', 'audio', 'robot', 'embed', 'dall-e', 'tts', 'whisper', 'vision-only']
+    non_text_keywords.extend(strict_non_text_keywords)
+
     # Provider-specific exclusions from configuration
     provider_specific_exclusions = ModelFiltering.PROVIDER_EXCLUSIONS
 
@@ -270,7 +274,7 @@ def fetch_google_models(api_key: str) -> List[Dict[str, Any]]:
         for model in models:
             model_name = model.name.split('/')[-1] if '/' in model.name else model.name
 
-            if is_text_model(model_name, 'google') and hasattr(model, 'supported_generation_methods'):
+            if is_text_model(model_name, 'google') and "gemini" in model_name.lower() and hasattr(model, 'supported_generation_methods'):
                 supported_methods = [method for method in model.supported_generation_methods]
                 if 'generateContent' in supported_methods:
                     google_models.append({
@@ -447,8 +451,11 @@ def fetch_qwen_models(api_key: str) -> List[Dict[str, Any]]:
         provider = QwenModelProvider(api_key=api_key)
         
         # Fetch models using the provider
-        qwen_models = provider.fetch_models()
+        raw_models = provider.fetch_models()
         
+        # Filter using the strict is_text_model function to ensure only text models are loaded
+        qwen_models = [m for m in raw_models if is_text_model(m['model_name'], 'qwen')]
+
         info(f"✅ Fetched {len(qwen_models)} Qwen models dynamically")
         return qwen_models
             
