@@ -8,7 +8,8 @@ langchain-google-genai # For LangChain integration with Google models
 langchain-groq
 langchain-openai
 langchain-xai
-langchain-community  # For community-contributed components
+langchain-community # For community-contributed components
+xai-sdk         # Official XAI SDK
  
 # Utilities
 python-dotenv  # For loading API keys from .env files

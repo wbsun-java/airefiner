@@ -11,6 +11,11 @@ except ImportError:
     ChatQwen = None
     print("WARNING: Could not import ChatOpenAI for Qwen integration")
 
+try:
+    import xai_sdk
+except ImportError:
+    xai_sdk = None
+    print("WARNING: xai-sdk not installed. Install with: pip install xai-sdk")
 
 
 try:
@@ -21,13 +26,12 @@ except ImportError:
     print("WARNING: python-dotenv not installed, .env file will not be loaded. Run: pip install python-dotenv")
 # --- END OF ADDED SECTION ---
 
-# --- Import Official xAI Integration ---
+# --- Import xAI Integration (gRPC) ---
 try:
-    from langchain_xai import ChatXAI
+    from models.xai_provider import ChatXAIGRPC as ChatXAI
 except ImportError:
     ChatXAI = None
-    print(
-        "WARNING: Could not import ChatXAI from langchain-xai. Install with: pip install langchain-xai")
+    # Warning handled in provider or initialization
 
 # Import configuration details (API keys and arg names)
 from config.config_manager import get_config
@@ -195,54 +199,23 @@ def get_fallback_openai_models() -> List[Dict[str, Any]]:
 
 def fetch_xai_models(api_key: str) -> List[Dict[str, Any]]:
     """
-    Dynamically fetch available xAI models from the API.
-    xAI API is OpenAI-compatible, so we use OpenAI client with custom base_url.
+    Dynamically fetch available xAI models.
+    Uses the custom xAI provider with gRPC support.
     """
     try:
-        # Use OpenAI client with xAI endpoint since they're API-compatible
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://api.x.ai/v1"
-        )
-        models = client.models.list()
-
-        grok_models = []
-        for model in models.data:
-            model_id = model.id
-            # Filter for Grok models that are text-based
-            if is_text_model(model_id, 'xai') and any(prefix in model_id.lower() for prefix in ['grok']):
-                grok_models.append({
-                    "key": f"xAI/{model_id}",
-                    "model_name": model_id,
-                    "class": ChatXAI,
-                    "args": {"temperature": 0.7},
-                    "model_id_key": "model"
-                })
-
-        info(f"✅ Fetched {len(grok_models)} xAI Grok models dynamically")
-        return grok_models
-
+        from models.xai_provider import XAIModelProvider
+        provider = XAIModelProvider(api_key=api_key)
+        return provider.fetch_models()
     except Exception as e:
         error(f"❌ Failed to fetch xAI models: {e}")
-        info("🔄 Falling back to predefined Grok models")
-        return get_fallback_xai_models()
+        return []
 
 
 def get_fallback_xai_models() -> List[Dict[str, Any]]:
     """
     Fallback xAI models if dynamic fetching fails.
     """
-    all_models = [
-        {"key": "xAI/grok-beta", "model_name": "grok-beta", "class": ChatXAI,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "xAI/grok-2", "model_name": "grok-2", "class": ChatXAI,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "xAI/grok-2-mini", "model_name": "grok-2-mini", "class": ChatXAI,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-        {"key": "xAI/grok-3", "model_name": "grok-3", "class": ChatXAI,
-         "args": {"temperature": 0.7}, "model_id_key": "model"},
-    ]
-    return [model for model in all_models if is_text_model(model["model_name"], 'xai')]
+    return []
 
 
 def fetch_google_models(api_key: str) -> List[Dict[str, Any]]:
@@ -608,9 +581,9 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
             continue
 
         if provider == "xai" and ChatXAI is None:
-            warning(f"\n⚪ Skipping xAI models: ChatXAI class not imported. Install with: pip install langchain-xai")
+            warning(f"\n⚪ Skipping xAI models: ChatXAIGRPC class not available. Install xai-sdk.")
             for model_def in model_list:
-                initialization_errors[model_def["key"]] = "ChatXAI class not available. Install langchain-xai package."
+                initialization_errors[model_def["key"]] = "ChatXAIGRPC class not available. Install xai-sdk package."
             continue
 
         if provider == "qwen" and ChatQwen is None:
@@ -636,7 +609,7 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
             constructor_id_param_name = model_def.get("model_id_key")
 
             if model_class is None and provider == "xai":
-                error_msg = f"Class definition missing for {model_key} (ChatXAI likely failed to import)."
+                error_msg = f"Class definition missing for {model_key} (ChatXAIGRPC likely failed to import)."
                 initialization_errors[model_key] = error_msg
                 warning(f"⚪ Skipping {model_key}: {error_msg}")
                 continue
