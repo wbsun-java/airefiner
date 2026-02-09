@@ -3,6 +3,7 @@ Qwen model provider using native Alibaba Cloud DashScope API.
 """
 
 import requests
+import re
 from typing import List, Dict, Any, Optional
 
 from models.base_model_provider import BaseModelProvider
@@ -90,6 +91,9 @@ class QwenModelProvider(BaseModelProvider):
                     })
                     qwen_models.append(model_def)
         
+        # Filter out older dated duplicates
+        qwen_models = self._filter_dated_models(qwen_models)
+        
         info(f"✅ Fetched {len(qwen_models)} Qwen models dynamically")
         return qwen_models
 
@@ -152,3 +156,47 @@ class QwenModelProvider(BaseModelProvider):
             return False
 
         return True
+
+    def _filter_dated_models(self, models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Filter out older dated versions of models, keeping only the latest one per base model.
+        
+        Args:
+            models: List of model definitions
+            
+        Returns:
+            Filtered list of model definitions
+        """
+        # Map base_name -> list of (date_str, model_def)
+        dated_models_map = {}
+        other_models = []
+        
+        # Pattern to match "base-name-YYYY-MM-DD"
+        date_pattern = re.compile(r"^(.*)-(\d{4}-\d{2}-\d{2})$")
+
+        for model in models:
+            # The model ID is stored in 'args' -> 'model_name'
+            model_id = model["args"].get("model_name", "")
+            match = date_pattern.match(model_id)
+            
+            if match:
+                base_name = match.group(1)
+                date_str = match.group(2)
+                if base_name not in dated_models_map:
+                    dated_models_map[base_name] = []
+                dated_models_map[base_name].append((date_str, model))
+            else:
+                other_models.append(model)
+                
+        # For each base name, find the max date
+        final_models = []
+        final_models.extend(other_models)
+        
+        for base_name, variations in dated_models_map.items():
+            # Sort by date string (ISO format sorts correctly lexicographically)
+            variations.sort(key=lambda x: x[0], reverse=True)
+            # Keep the latest
+            _, best_model = variations[0]
+            final_models.append(best_model)
+
+        return final_models

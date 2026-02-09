@@ -285,7 +285,8 @@ class InputHandler(LoggerMixin):
         Returns:
             True if user wants to save, False otherwise
         """
-        choice = input("Save result to file? (y/n) [n]: ").strip().lower()
+        choice = input("Save result to file? (y/N): ").strip().lower()
+
         return choice == 'y'
 
 
