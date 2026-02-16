@@ -100,7 +100,6 @@ def mock_langchain_imports():
         'langchain_anthropic': Mock(),
         'langchain_google_genai': Mock(),
         'langchain_groq': Mock(),
-        'langchain_xai': Mock(),
     }):
         yield
 

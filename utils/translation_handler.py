@@ -1,40 +1,28 @@
-#!/usr/bin/env python3
 """
-Translation Handler - Automatic language detection and translation
+Translation Handler - Automatic language detection and translation.
 """
 
-import os
-import sys
 from typing import Dict, Tuple, Any
 
 try:
     from langdetect import detect
     from langdetect.lang_detect_exception import LangDetectException
 
-    LangDetectError = LangDetectException  # Alias for compatibility
+    LangDetectError = LangDetectException
 except ImportError:
     detect = None
     LangDetectError = Exception
-    print("WARNING: langdetect not available. Install with: pip install langdetect")
-
-# Add project root to path for imports
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 from prompts.translate_prompts import TRANSLATE_EN_TO_ZH_PROMPT, TRANSLATE_ZH_TO_EN_PROMPT
 from prompts.refine_prompts import REFINE_TEXT_PROMPT
 from config.constants import LanguageSupport, LanguageDetection, ConfidenceThresholds
-from utils.logger import LoggerMixin, info
+from utils.logger import LoggerMixin
 
 
 class TranslationHandler(LoggerMixin):
-    """
-    Handles automatic language detection and translation between English and Chinese
-    """
+    """Handles automatic language detection and translation between English and Chinese."""
 
     def __init__(self):
-        """Initialize the translation handler"""
         self.supported_languages = LanguageSupport.SUPPORTED_LANGUAGES
         self.language_mapping = LanguageSupport.LANGUAGE_MAPPING
 
@@ -272,38 +260,3 @@ class TranslationHandler(LoggerMixin):
         return summary
 
 
-def create_auto_translate_task_info() -> Dict[str, Any]:
-    """
-    Create task info for the new auto-translate feature
-    
-    Returns:
-        Task info dictionary for settings.py
-    """
-    return {
-        "id": "auto_translate",
-        "name": "Auto-Translate (Detect Language & Translate)"
-    }
-
-
-# Quick test function
-def test_language_detection():
-    """Test the language detection functionality"""
-    handler = TranslationHandler()
-
-    test_cases = [
-        "Hello, how are you today?",
-        "Hi, I recently canceled one policy from my account.",
-        "This is a test of the emergency broadcast system."
-    ]
-
-    info("=== Testing Language Detection ===")
-    for text in test_cases:
-        info(f"\nText: {text}")
-        translation_info = handler.determine_translation_direction(text)
-        summary = handler.get_translation_summary(translation_info, text)
-        info(summary)
-        info("-" * 50)
-
-
-if __name__ == "__main__":
-    test_language_detection()

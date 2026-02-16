@@ -20,7 +20,6 @@ class APIConfiguration:
     google_key: Optional[str] = None
     groq_key: Optional[str] = None
     xai_key: Optional[str] = None
-    qwen_key: Optional[str] = None
 
     # Constructor argument names for each provider
     api_key_arg_names: Dict[str, str] = field(default_factory=lambda: {
@@ -29,7 +28,6 @@ class APIConfiguration:
         ModelProvider.GOOGLE.value: "google_api_key",
         ModelProvider.GROQ.value: "groq_api_key",
         ModelProvider.XAI.value: "xai_api_key",
-        ModelProvider.QWEN.value: "qwen_api_key",
     })
 
     @classmethod
@@ -46,7 +44,6 @@ class APIConfiguration:
             google_key=os.getenv('GOOGLE_API_KEY'),
             groq_key=os.getenv('GROQ_API_KEY'),
             xai_key=os.getenv('XAI_API_KEY'),
-            qwen_key=os.getenv('QWEN_API_KEY'),
         )
 
     def get_api_keys(self) -> Dict[str, str]:
@@ -62,7 +59,6 @@ class APIConfiguration:
             ModelProvider.GOOGLE.value: self.google_key,
             ModelProvider.GROQ.value: self.groq_key,
             ModelProvider.XAI.value: self.xai_key,
-            ModelProvider.QWEN.value: self.qwen_key,
         }
         return {k: v for k, v in keys.items() if v is not None}
 

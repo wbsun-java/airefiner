@@ -13,7 +13,6 @@ class ModelProvider(Enum):
     GOOGLE = "google"
     GROQ = "groq"
     XAI = "xai"
-    QWEN = "qwen"
 
 
 class CacheConfig:
@@ -32,7 +31,6 @@ class ConfidenceThresholds:
     """Confidence threshold constants for language detection."""
     HIGH = 0.8
     MEDIUM = 0.6
-    LOW = 0.0
 
 
 class LanguageDetection:
@@ -41,24 +39,6 @@ class LanguageDetection:
     MAX_LENGTH_BONUS = 0.2
     MAX_PATTERN_BONUS = 0.1
     LENGTH_DIVISOR = 100
-    CONFIDENCE_LEVELS = {
-        "high": ConfidenceThresholds.HIGH,
-        "medium": ConfidenceThresholds.MEDIUM,
-        "low": ConfidenceThresholds.LOW
-    }
-
-
-class LoggingConfig:
-    """Logging configuration constants."""
-    DEFAULT_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-    # Log levels
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-    CRITICAL = "CRITICAL"
 
 
 class ModelFiltering:
@@ -93,36 +73,18 @@ class ModelFiltering:
     # Provider-specific exclusions
     PROVIDER_EXCLUSIONS: Dict[str, List[str]] = {
         ModelProvider.OPENAI.value: ['davinci-edit', 'curie-edit', 'babbage-edit', 'ada-edit'],
-        ModelProvider.GOOGLE.value: ['bison', 'gecko', 'otter', 'unicorn'],  # Legacy/specialized Gemini models
+        ModelProvider.GOOGLE.value: ['bison', 'gecko', 'otter', 'unicorn', 'computer-use'],  # Legacy/specialized Gemini models
         ModelProvider.ANTHROPIC.value: [],  # Claude models are generally text-focused
         ModelProvider.GROQ.value: ['whisper', 'distil-whisper'],  # Audio transcription models
         ModelProvider.XAI.value: [],  # Grok models are generally text-focused
-        ModelProvider.QWEN.value: []  # Qwen models are generally text-focused
     }
 
     # Text model indicators
     TEXT_INDICATORS = [
-        'chat', 'gpt', 'claude', 'gemini', 'llama', 'mistral', 'qwen', 'deepseek', 'grok',
+        'chat', 'gpt', 'o1', 'claude', 'gemini', 'llama', 'mistral', 'mixtral', 'deepseek', 'grok',
+        'gemma', 'kimi',
         'text', 'language', 'conversation', 'instruct', 'assistant'
     ]
-
-
-class APIConfig:
-    """API configuration constants."""
-
-    # Request timeouts
-    DEFAULT_TIMEOUT = 30
-    CONNECTION_TIMEOUT = 10
-    READ_TIMEOUT = 30
-
-    # Rate limiting
-    DEFAULT_RATE_LIMIT = 60  # requests per minute
-    BURST_LIMIT = 10
-
-    # Retry configuration
-    MAX_RETRIES = 3
-    RETRY_DELAY = 1.0  # seconds
-    BACKOFF_FACTOR = 2.0
 
 
 class TaskConfiguration:

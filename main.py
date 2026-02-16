@@ -136,33 +136,16 @@ class AIRefinerApp(LoggerMixin):
 
     def _handle_post_processing(self) -> bool:
         """
-        Handle post-processing options (refine further, save, etc.).
-        
+        Handle post-processing options.
+
         Returns:
             True to continue with current selections, False to reset to main menu
         """
-        # Check if user can refine further (now available for all tasks)
         if self.app_manager.should_refine_further():
             if self.ui.get_refine_choice():
-                # User wants to refine further, keep current selections
                 return True
-            # User doesn't want to refine further, fall through to save option
-        
-        # Ask about saving the result (optional feature)
-        if self.ui.get_save_choice():
-            self._save_result()
 
-        # Return to main menu after processing
         return False
-
-    def _save_result(self):
-        """Save the result to a file (placeholder implementation)."""
-        # This is a placeholder for future file saving functionality
-        self.ui.display_status("File saving not yet implemented", "warning")
-        # TODO: Implement file saving functionality
-        # - Ask user for filename
-        # - Save result to file
-        # - Display success/error message
 
 
 def main():

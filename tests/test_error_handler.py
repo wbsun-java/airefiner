@@ -93,11 +93,11 @@ class TestErrorHandler:
         original = ValueError("Original")
         error = ConfigurationError("Config failed", original)
 
-        with patch.object(error_handler.logger, 'critical') as mock_critical, \
+        with patch.object(error_handler.logger, 'error') as mock_error, \
                 patch.object(error_handler.logger, 'exception') as mock_exception:
             result = error_handler.handle_error(error, "test context")
 
-            mock_critical.assert_called_once()
+            mock_error.assert_called_once()
             mock_exception.assert_called_once()
             assert "Configuration error: Config failed" in result
 

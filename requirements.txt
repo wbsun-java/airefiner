@@ -1,19 +1,13 @@
 # Core AI and LangChain Framework
-# By listing these, pip will automatically pull in their dependencies
-# like langchain-core, pydantic, aiohttp, etc.
-langchain
-langchain-anthropic
-google-generativeai  # For native Google Gemini integration and model discovery
-langchain-google-genai # For LangChain integration with Google models
-langchain-groq
-langchain-openai
-langchain-xai
-langchain-community # For community-contributed components
-xai-sdk         # Official XAI SDK
- 
+langchain>=1.2.10
+langchain-anthropic>=1.1.0
+langchain-google-genai>=4.2.0
+langchain-groq>=1.1.2
+langchain-openai>=1.1.9
+google-genai>=0.7.0         # New Google Gen AI SDK (replaces google-generativeai)
+xai-sdk>=1.6.1              # Official xAI SDK for gRPC integration
+
 # Utilities
-python-dotenv  # For loading API keys from .env files
-requests       # For making direct HTTP API calls
-tiktoken       # For token counting with OpenAI models
-langdetect     # For language detection features
-tqdm           # For displaying progress bars
+python-dotenv>=1.2.1  # For loading API keys from .env files
+requests>=2.32.5      # For making direct HTTP API calls
+langdetect>=1.0.9     # For language detection features

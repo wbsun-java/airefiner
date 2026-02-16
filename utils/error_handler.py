@@ -257,17 +257,17 @@ def with_retry(config: RetryConfig):
     return decorator
 
 
-class CircuitBreaker:
+class CircuitBreaker(LoggerMixin):
     """Circuit breaker pattern for failing operations."""
 
     def __init__(self, failure_threshold: int = 3, recovery_timeout: float = 60.0, name: str = "operation"):
+        super().__init__()
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.name = name
         self.failure_count = 0
         self.last_failure_time: Optional[float] = None
         self.state = "closed"  # closed, open, half-open
-        self.logger = LoggerMixin().logger
 
     def call(self, func: Callable, *args, **kwargs) -> Any:
         """

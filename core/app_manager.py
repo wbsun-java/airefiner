@@ -3,7 +3,6 @@ Application manager for AIRefiner - separates business logic from UI logic.
 """
 
 from typing import Dict, Any, Optional, Tuple
-
 from config.constants import TaskConfiguration
 from models import model_loader
 from utils.error_handler import ErrorHandler, ModelInitializationError, ProcessingError, with_error_handling, CircuitBreaker
@@ -17,7 +16,8 @@ class AppState:
         self.selected_model: Optional[str] = None
         self.selected_task: Optional[Dict[str, Any]] = None
         self.last_result: Optional[str] = None
-        self.last_result_task_id: Optional[str] = None  # Track which task generated the last result
+        self.last_result_task_id: Optional[str] = None
+        self.last_result_is_error: bool = False
         self.should_exit: bool = False
         self.initialized_models: Dict[str, Any] = {}
         self.initialization_errors: Dict[str, str] = {}
@@ -32,7 +32,6 @@ class ModelManager(LoggerMixin):
         self._errors: Dict[str, str] = {}
         self._initialized = False
 
-    @with_error_handling("Model initialization", return_on_error=({}, {}))
     def initialize_models(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
         Initialize all AI models.
@@ -94,6 +93,7 @@ class TaskProcessor(LoggerMixin):
         super().__init__()
         self.model_manager = model_manager
         self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self._translation_handler = None
 
     def execute_task(self, model_key: str, text_input: str, task_id: str) -> str:
         """
@@ -127,8 +127,9 @@ class TaskProcessor(LoggerMixin):
 
             # Get appropriate prompt based on task
             if task_id == TaskConfiguration.AUTO_TRANSLATE:
-                handler = TranslationHandler()
-                prompt_template_str = handler.get_translation_prompt(text_input)
+                if self._translation_handler is None:
+                    self._translation_handler = TranslationHandler()
+                prompt_template_str = self._translation_handler.get_translation_prompt(text_input)
             else:
                 prompt_map = {
                     TaskConfiguration.REFINE: refine_prompts.REFINE_TEXT_PROMPT,
@@ -219,27 +220,30 @@ class ApplicationManager(LoggerMixin):
             )
 
             self.app_state.last_result = result
-            self.app_state.last_result_task_id = self.app_state.selected_task['id']  # Track which task generated this result
+            self.app_state.last_result_task_id = self.app_state.selected_task['id']
+            self.app_state.last_result_is_error = False
             return result
 
         except ProcessingError as e:
             error_handler = ErrorHandler()
             error_msg = error_handler.handle_error(e, "Text processing")
             self.app_state.last_result = None
-            self.app_state.last_result_task_id = None  # Clear task ID on error
+            self.app_state.last_result_task_id = None
+            self.app_state.last_result_is_error = True
             return f"Error: {error_msg}"
         except Exception as e:
             error_handler = ErrorHandler()
             error_msg = error_handler.handle_error(e, "Text processing")
             self.app_state.last_result = None
-            self.app_state.last_result_task_id = None  # Clear task ID on error
+            self.app_state.last_result_task_id = None
+            self.app_state.last_result_is_error = True
             return f"Unexpected error: {error_msg}"
 
     def should_refine_further(self) -> bool:
         """Check if the user can refine the result further."""
-        return (self.app_state.selected_task and
-                self.app_state.last_result and
-                "Error" not in self.app_state.last_result)
+        return (self.app_state.selected_task is not None and
+                self.app_state.last_result is not None and
+                not self.app_state.last_result_is_error)
 
     def can_use_previous_result(self) -> bool:
         """Check if the previous result can be used as input."""
@@ -263,6 +267,7 @@ class ApplicationManager(LoggerMixin):
         """Clear previous result when starting a new task."""
         self.app_state.last_result = None
         self.app_state.last_result_task_id = None
+        self.app_state.last_result_is_error = False
 
     def exit_application(self):
         """Signal application exit."""

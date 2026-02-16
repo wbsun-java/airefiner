@@ -2,14 +2,12 @@
 xAI model provider using official xAI SDK (gRPC).
 """
 
-import requests
 from typing import List, Dict, Any, Optional
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langchain_core.outputs import ChatResult, ChatGeneration
 from pydantic import Field
-
 from models.base_model_provider import BaseModelProvider
 from utils.logger import info, warning, error
 
@@ -134,27 +132,24 @@ class XAIModelProvider(BaseModelProvider):
         except Exception as e:
             pass
 
-        # Fallback: Use REST API for model discovery (Metadata only)
+        # Fallback: Use OpenAI-compatible SDK for model discovery
         try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}"
-            }
-            response = requests.get("https://api.x.ai/v1/models", headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                for model in data.get("data", []):
-                    model_id = model.get("id")
-                    if model_id and "grok" in model_id.lower() and self._is_text_model(model_id):
-                        model_def = self.create_model_definition(model_id)
-                        grok_models.append(model_def)
-            
+            from openai import OpenAI
+            client = OpenAI(api_key=self.api_key, base_url="https://api.x.ai/v1")
+            models_response = client.models.list()
+
+            for model in models_response.data:
+                model_id = model.id
+                if model_id and "grok" in model_id.lower() and self._is_text_model(model_id):
+                    model_def = self.create_model_definition(model_id)
+                    grok_models.append(model_def)
+
             if grok_models:
-                info(f"✅ Fetched {len(grok_models)} xAI Grok models via REST discovery")
+                info(f"✅ Fetched {len(grok_models)} xAI Grok models via OpenAI-compatible SDK")
                 return grok_models
-                
+
         except Exception as e:
-            warning(f"⚠️ Failed to fetch xAI models via REST discovery: {e}")
+            warning(f"⚠️ Failed to fetch xAI models via OpenAI-compatible SDK: {e}")
 
         return []
 

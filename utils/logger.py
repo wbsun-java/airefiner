@@ -4,12 +4,8 @@ Replaces scattered print statements with proper logging.
 """
 
 import logging
-import logging.handlers
 import sys
-from pathlib import Path
 from typing import Optional
-
-from config.constants import LoggingConfig
 
 
 class ColoredFormatter(logging.Formatter):
@@ -25,6 +21,8 @@ class ColoredFormatter(logging.Formatter):
     RESET = '\033[0m'
 
     def format(self, record):
+        import copy
+        record = copy.copy(record)
         log_color = self.COLORS.get(record.levelname, '')
         record.levelname = f"{log_color}{record.levelname}{self.RESET}"
         return super().format(record)
@@ -61,12 +59,15 @@ class SafeColoredFormatter(logging.Formatter):
     }
 
     def format(self, record):
+        # Work on a copy to avoid mutating the shared record
+        import copy
+        record = copy.copy(record)
+
         # Replace Unicode emojis with ASCII alternatives
         message = record.getMessage()
         for emoji, replacement in self.EMOJI_REPLACEMENTS.items():
             message = message.replace(emoji, replacement)
 
-        # Update the record's message
         record.msg = message
         record.args = ()
 
@@ -124,27 +125,8 @@ class AIRefinerLogger:
 
         console_handler.setFormatter(formatter)
 
-        # File handler for persistent logging
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
-
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_dir / "airefiner.log",
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5
-        )
-        file_handler.setLevel(logging.DEBUG)
-
-        # Plain formatter for file output
-        file_formatter = logging.Formatter(
-            LoggingConfig.DEFAULT_FORMAT,
-            datefmt=LoggingConfig.DATE_FORMAT
-        )
-        file_handler.setFormatter(file_formatter)
-
-        # Add handlers
+        # Add handler
         self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
 
         # Prevent propagation to root logger
         self.logger.propagate = False

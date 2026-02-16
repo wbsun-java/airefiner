@@ -21,6 +21,7 @@ class TestAppState:
         assert state.selected_task is None
         assert state.last_result is None
         assert state.last_result_task_id is None
+        assert state.last_result_is_error is False
         assert state.should_exit is False
         assert state.initialized_models == {}
         assert state.initialization_errors == {}
@@ -131,9 +132,9 @@ class TestTaskProcessor:
         assert "Model 'nonexistent_model' not found" in str(exc_info.value)
         assert exc_info.value.task_id == 'refine'
 
-    @patch('core.app_manager.refine_prompts')
-    @patch('core.app_manager.ChatPromptTemplate')
-    @patch('core.app_manager.StrOutputParser')
+    @patch('prompts.refine_prompts')
+    @patch('langchain_core.prompts.ChatPromptTemplate')
+    @patch('langchain_core.output_parsers.StrOutputParser')
     def test_execute_task_success(self, mock_parser, mock_template, mock_prompts,
                                   task_processor, mock_model_manager):
         """Test successful task execution."""
@@ -147,6 +148,7 @@ class TestTaskProcessor:
 
         mock_chain = Mock()
         mock_prompt_template.__or__ = Mock(return_value=mock_chain)
+        mock_chain.__or__ = Mock(return_value=mock_chain)
         mock_chain.invoke.return_value = "Processed text"
 
         # Execute
@@ -158,7 +160,7 @@ class TestTaskProcessor:
         mock_template.from_template.assert_called_once_with("Test prompt: {user_text}")
         mock_chain.invoke.assert_called_once_with({"user_text": "input text"})
 
-    @patch('core.app_manager.TranslationHandler')
+    @patch('utils.translation_handler.TranslationHandler')
     def test_execute_task_auto_translate(self, mock_handler_class, task_processor, mock_model_manager):
         """Test task execution with auto-translate."""
         # Setup mocks
@@ -169,13 +171,14 @@ class TestTaskProcessor:
         mock_handler_class.return_value = mock_handler
         mock_handler.get_translation_prompt.return_value = "Translation prompt: {user_text}"
 
-        with patch('core.app_manager.ChatPromptTemplate') as mock_template, \
-                patch('core.app_manager.StrOutputParser'):
+        with patch('langchain_core.prompts.ChatPromptTemplate') as mock_template, \
+                patch('langchain_core.output_parsers.StrOutputParser'):
             mock_prompt_template = Mock()
             mock_template.from_template.return_value = mock_prompt_template
 
             mock_chain = Mock()
             mock_prompt_template.__or__ = Mock(return_value=mock_chain)
+            mock_chain.__or__ = Mock(return_value=mock_chain)
             mock_chain.invoke.return_value = "Translated text"
 
             result = task_processor.execute_task('test_model', 'input text', 'auto_translate')
@@ -194,8 +197,8 @@ class TestTaskProcessor:
         assert "Prompt for task 'unknown_task' not found" in str(exc_info.value)
         assert exc_info.value.task_id == 'unknown_task'
 
-    @patch('core.app_manager.ChatPromptTemplate')
-    @patch('core.app_manager.refine_prompts')
+    @patch('langchain_core.prompts.ChatPromptTemplate')
+    @patch('prompts.refine_prompts')
     def test_execute_task_chain_exception(self, mock_prompts, mock_template,
                                           task_processor, mock_model_manager):
         """Test task execution when chain raises exception."""
@@ -209,9 +212,10 @@ class TestTaskProcessor:
 
         mock_chain = Mock()
         mock_prompt_template.__or__ = Mock(return_value=mock_chain)
+        mock_chain.__or__ = Mock(return_value=mock_chain)
         mock_chain.invoke.side_effect = RuntimeError("Chain failed")
 
-        with patch('core.app_manager.StrOutputParser'), \
+        with patch('langchain_core.output_parsers.StrOutputParser'), \
                 patch('core.app_manager.ErrorHandler') as mock_handler_class:
             mock_handler = Mock()
             mock_handler_class.return_value = mock_handler
@@ -316,6 +320,7 @@ class TestApplicationManager:
 
             assert "Error: Error message" in result
             assert app_manager.app_state.last_result is None
+            assert app_manager.app_state.last_result_is_error is True
 
     def test_should_refine_further_true_refine_task(self, app_manager):
         """Test should_refine_further returns True for refine task when conditions met."""
@@ -339,9 +344,10 @@ class TestApplicationManager:
         assert app_manager.should_refine_further() is True
 
     def test_should_refine_further_false_error_result(self, app_manager):
-        """Test should_refine_further returns False when result contains error."""
+        """Test should_refine_further returns False when result was an error."""
         app_manager.app_state.selected_task = {'id': 'refine'}
         app_manager.app_state.last_result = "Error: Something went wrong"
+        app_manager.app_state.last_result_is_error = True
 
         assert app_manager.should_refine_further() is False
 
@@ -349,20 +355,23 @@ class TestApplicationManager:
         """Test can_use_previous_result returns True for refine task when conditions met."""
         app_manager.app_state.selected_task = {'id': 'refine'}
         app_manager.app_state.last_result = "Previous result"
+        app_manager.app_state.last_result_task_id = "refine"
 
         assert app_manager.can_use_previous_result() is True
 
     def test_can_use_previous_result_true_translate_task(self, app_manager):
-        """Test can_use_previous_result returns True for translate task (now supported)."""
+        """Test can_use_previous_result returns True for translate task."""
         app_manager.app_state.selected_task = {'id': 'auto_translate'}
         app_manager.app_state.last_result = "Previous result"
+        app_manager.app_state.last_result_task_id = "auto_translate"
 
         assert app_manager.can_use_previous_result() is True
 
     def test_can_use_previous_result_true_presentation_task(self, app_manager):
-        """Test can_use_previous_result returns True for presentation task (now supported)."""
+        """Test can_use_previous_result returns True for presentation task."""
         app_manager.app_state.selected_task = {'id': 'refine_presentation'}
         app_manager.app_state.last_result = "Previous result"
+        app_manager.app_state.last_result_task_id = "refine_presentation"
 
         assert app_manager.can_use_previous_result() is True
 
@@ -436,8 +445,10 @@ class TestApplicationManager:
         # Set up some previous result
         app_manager.app_state.last_result = "Previous result"
         app_manager.app_state.last_result_task_id = "refine"
+        app_manager.app_state.last_result_is_error = False
 
         app_manager.clear_previous_result()
 
         assert app_manager.app_state.last_result is None
         assert app_manager.app_state.last_result_task_id is None
+        assert app_manager.app_state.last_result_is_error is False
