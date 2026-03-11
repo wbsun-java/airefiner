@@ -1,6 +1,5 @@
 """
-Refactored main application entry point for AIRefiner.
-Demonstrates improved separation of concerns with business logic and UI logic.
+Main application entry point for AIRefiner.
 """
 
 from dotenv import load_dotenv
@@ -11,7 +10,7 @@ load_dotenv()
 from core.app_manager import ApplicationManager
 from ui.console_interface import ConsoleInterface
 from utils.logger import LoggerMixin
-from config.config_manager import load_config
+from config.config_manager import load_config, get_config
 
 
 class AIRefinerApp(LoggerMixin):
@@ -23,18 +22,11 @@ class AIRefinerApp(LoggerMixin):
         self.ui = ConsoleInterface()
 
     def run(self):
-        """Run the main application loop."""
         try:
             self.logger.info("Starting AIRefiner application")
             self.ui.display_welcome_message()
-
-            # Load and validate configuration
             load_config()
-
-            # Initialize the application
             self.app_manager.initialize()
-
-            # Main interaction loop
             self._main_loop()
 
         except KeyboardInterrupt:
@@ -48,39 +40,29 @@ class AIRefinerApp(LoggerMixin):
             self.logger.info("AIRefiner application terminated")
 
     def _main_loop(self):
-        """Main application interaction loop."""
-        while not self.app_manager.should_exit():
+        tasks = get_config().tasks
+        while not self.app_manager.is_exit_requested():
             try:
-                # Model selection
-                if not self.app_manager.app_state.selected_model:
-                    model_choice = self._handle_model_selection()
-                    if model_choice == "exit":
+                if not self.app_manager.selected_model:
+                    choice = self._handle_model_selection()
+                    if choice == "exit":
                         self.app_manager.exit_application()
                         break
-                    elif model_choice is None:
-                        continue  # Invalid choice, try again
-
-                    self.app_manager.set_selected_model(model_choice)
-
-                # Task selection
-                if not self.app_manager.app_state.selected_task:
-                    task_choice = self.ui.select_task()
-                    if task_choice is None:
-                        # User chose to go back to model selection
-                        self.app_manager.reset_model_selection()
+                    elif choice is None:
                         continue
+                    self.app_manager.selected_model = choice
 
-                    self.app_manager.set_selected_task(task_choice)
+                if not self.app_manager.selected_task:
+                    task = self.ui.select_task(tasks)
+                    if task is None:
+                        self.app_manager.selected_model = None
+                        continue
+                    self.app_manager.selected_task = task
 
-                # Text input and processing
                 self._handle_text_processing()
 
-                # Post-processing options
                 if not self._handle_post_processing():
-                    # User chose to go back to main menu
-                    self.app_manager.reset_model_selection()
-                    self.app_manager.reset_task_selection()
-                    self.app_manager.clear_previous_result()  # Clear previous result when starting fresh
+                    self.app_manager.reset_state()
 
             except KeyboardInterrupt:
                 self.ui.display_warning("Operation cancelled by user")
@@ -88,68 +70,38 @@ class AIRefinerApp(LoggerMixin):
             except Exception as e:
                 self.logger.exception(f"Error in main loop: {e}")
                 self.ui.display_error(f"An error occurred: {e}")
-                # Reset state on error
-                self.app_manager.reset_model_selection()
-                self.app_manager.reset_task_selection()
-                self.app_manager.clear_previous_result()
+                self.app_manager.reset_state()
 
-    def _handle_model_selection(self) -> str:
-        """
-        Handle model selection.
-        
-        Returns:
-            Selected model key, "exit", or None for invalid choice
-        """
+    def _handle_model_selection(self):
         available_models = self.app_manager.get_available_models()
-
         if not available_models:
             self.ui.display_error("No models available. Please check your configuration.")
-            self.app_manager.exit_application()
             return "exit"
-
         return self.ui.select_model(available_models)
 
     def _handle_text_processing(self):
-        """Handle text input and processing."""
-        task_name = self.app_manager.app_state.selected_task['name']
-
-        # Get text input
+        task_name = self.app_manager.selected_task['name']
         can_use_previous = self.app_manager.can_use_previous_result()
         previous_result = self.app_manager.get_previous_result() if can_use_previous else None
 
         text_input = self.ui.get_text_input(task_name, can_use_previous, previous_result)
-
-        if text_input is None:
-            # User cancelled input
+        if not text_input:
             return
-
         if not text_input.strip():
             self.ui.display_warning("No text provided. Please enter some text to process.")
             return
 
-        # Process the text
         self.ui.display_status("Processing text...", "loading")
         result = self.app_manager.process_text(text_input)
-
-        # Display result
         self.ui.display_result(result)
 
     def _handle_post_processing(self) -> bool:
-        """
-        Handle post-processing options.
-
-        Returns:
-            True to continue with current selections, False to reset to main menu
-        """
         if self.app_manager.should_refine_further():
-            if self.ui.get_refine_choice():
-                return True
-
+            return self.ui.get_refine_choice()
         return False
 
 
 def main():
-    """Main entry point for the application."""
     app = AIRefinerApp()
     app.run()
 

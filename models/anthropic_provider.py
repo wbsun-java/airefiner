@@ -33,7 +33,7 @@ class AnthropicModelProvider(BaseModelProvider):
         """
         Dynamically fetch available Anthropic Claude models from the API.
         """
-        from models.model_loader import is_text_model
+        from models.model_filter import is_text_model
 
         try:
             if anthropic_sdk is None:
@@ -62,7 +62,7 @@ class AnthropicModelProvider(BaseModelProvider):
         """
         Fallback Anthropic models if dynamic fetching fails.
         """
-        from models.model_loader import is_text_model
+        from models.model_filter import is_text_model
 
         fallback_models = [
             ("claude-3-5-sonnet-20241022", "Claude Sonnet 3.5"),

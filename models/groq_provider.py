@@ -33,7 +33,7 @@ class GroqModelProvider(BaseModelProvider):
         """
         Dynamically fetch available Groq models from the API.
         """
-        from models.model_loader import is_text_model
+        from models.model_filter import is_text_model
 
         try:
             if Groq is None:
@@ -60,7 +60,7 @@ class GroqModelProvider(BaseModelProvider):
         """
         Fallback Groq models if dynamic fetching fails.
         """
-        from models.model_loader import is_text_model
+        from models.model_filter import is_text_model
 
         model_ids = [
             "llama-3.1-70b-versatile", "llama-3.1-8b-instant",

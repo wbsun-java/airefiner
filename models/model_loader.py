@@ -6,7 +6,8 @@ import time
 from typing import Dict, Any, Tuple
 
 from config.config_manager import get_config
-from config.constants import CacheConfig, ModelFiltering
+from config.constants import CACHE_DURATION_SECONDS
+from models.model_filter import is_text_model  # noqa: F401 - re-exported for backward compatibility
 from utils.logger import info, warning, error
 
 # Global cache for model definitions
@@ -32,41 +33,6 @@ def _get_provider_class(provider_name: str):
     return getattr(module, class_name)
 
 
-def is_text_model(model_id: str, provider: str = "") -> bool:
-    """
-    Filter to identify text-based models suitable for content refinement.
-    Uses keyword heuristics to exclude image/audio/video/embedding models.
-    Can be disabled or customized via config_manager.py configuration.
-    """
-    config = get_config()
-    if not config.model_filtering.enable_strict_filtering:
-        return True
-
-    model_id_lower = model_id.lower()
-
-    non_text_keywords = ModelFiltering.NON_TEXT_KEYWORDS.copy()
-    non_text_keywords.extend([kw.lower() for kw in config.model_filtering.custom_exclude_keywords])
-    non_text_keywords.extend(['image', 'video', 'audio', 'robot', 'embed', 'dall-e', 'tts', 'whisper', 'vision-only'])
-
-    for keyword in non_text_keywords:
-        if keyword in model_id_lower:
-            info(f"🔎 Filtering out non-text model ({keyword}): {model_id}")
-            return False
-
-    provider_exclusions = ModelFiltering.PROVIDER_EXCLUSIONS
-    if provider and provider in provider_exclusions:
-        for excluded in provider_exclusions[provider]:
-            if excluded.lower() in model_id_lower:
-                info(f"🔎 Filtering out provider-specific non-text model: {model_id}")
-                return False
-
-    if not any(ind in model_id_lower for ind in ModelFiltering.TEXT_INDICATORS):
-        info(f"🔎 Model may not be text-focused (no text indicators): {model_id}")
-        return False
-
-    return True
-
-
 def get_model_definitions() -> Dict[str, list]:
     """
     Fetch model definitions from all providers with 1-hour caching.
@@ -75,7 +41,7 @@ def get_model_definitions() -> Dict[str, list]:
     global _model_cache, _cache_timestamp
 
     current_time = time.time()
-    if _model_cache and (current_time - _cache_timestamp) < CacheConfig.DURATION_SECONDS:
+    if _model_cache and (current_time - _cache_timestamp) < CACHE_DURATION_SECONDS:
         info("📋 Using cached model definitions")
         return _model_cache
 
@@ -99,7 +65,7 @@ def get_model_definitions() -> Dict[str, list]:
 
     _model_cache = model_definitions
     _cache_timestamp = current_time
-    info(f"💾 Model definitions cached for {CacheConfig.CACHE_DURATION_MINUTES} minutes")
+    info(f"💾 Model definitions cached for {CACHE_DURATION_SECONDS // 60} minutes")
     info(f"📊 Total models after filtering: {sum(len(m) for m in model_definitions.values())}")
 
     return model_definitions
@@ -119,11 +85,6 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
     api_keys = config.api_config.get_api_keys()
     api_key_arg_names = config.api_config.api_key_arg_names
 
-    try:
-        from models.xai_provider import ChatXAIGRPC as ChatXAI
-    except ImportError:
-        ChatXAI = None
-
     for provider, model_list in get_model_definitions().items():
         api_key = api_keys.get(provider)
         api_key_arg_name = api_key_arg_names.get(provider)
@@ -132,12 +93,6 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
             warning(f"\n⚠️ Skipping provider '{provider}': Not configured in api_key_arg_names.")
             for md in model_list:
                 initialization_errors[md["key"]] = f"Provider '{provider}' not configured."
-            continue
-
-        if provider == "xai" and ChatXAI is None:
-            warning(f"\n⚪ Skipping xAI models: ChatXAIGRPC not available. Install xai-sdk.")
-            for md in model_list:
-                initialization_errors[md["key"]] = "ChatXAIGRPC not available."
             continue
 
         if not api_key:

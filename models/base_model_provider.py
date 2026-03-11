@@ -5,7 +5,7 @@ Base classes for model providers to eliminate code duplication.
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 
-from config.constants import InputConfig
+from config.constants import DEFAULT_TEMPERATURE
 from utils.logger import LoggerMixin
 
 
@@ -25,7 +25,7 @@ class BaseModelProvider(ABC, LoggerMixin):
         """
         self.api_key = api_key
         self.provider_name = provider_name
-        self.default_args = {"temperature": InputConfig.DEFAULT_TEMPERATURE}
+        self.default_args = {"temperature": DEFAULT_TEMPERATURE}
 
     @abstractmethod
     def fetch_models(self) -> List[Dict[str, Any]]:
@@ -66,22 +66,6 @@ class BaseModelProvider(ABC, LoggerMixin):
             Parameter name (e.g., 'model_name', 'model')
         """
         pass
-
-    def initialize_models_with_fallback(self) -> List[Dict[str, Any]]:
-        """
-        Initialize models with fallback to predefined models if API call fails.
-        
-        Returns:
-            List of model definitions
-        """
-        try:
-            models = self.fetch_models()
-            self.logger.info(f"✅ Fetched {len(models)} {self.provider_name} models dynamically")
-            return models
-        except Exception as e:
-            self.logger.error(f"❌ Failed to fetch {self.provider_name} models: {e}")
-            self.logger.info(f"🔄 Falling back to predefined {self.provider_name} models")
-            return self.get_fallback_models()
 
     def create_model_definition(self, model_id: str, display_name: Optional[str] = None) -> Dict[str, Any]:
         """

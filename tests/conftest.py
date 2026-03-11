@@ -54,25 +54,12 @@ def mock_api_configuration():
 
 
 @pytest.fixture
-def mock_task_configuration():
-    """Fixture to provide a mock tasks configuration."""
-    from config.config_manager import TasksConfiguration
-
-    return TasksConfiguration(tasks={
-        "1": {"id": "refine", "name": "Refine Text"},
-        "2": {"id": "auto_translate", "name": "Auto-Translate"}
-    })
-
-
-@pytest.fixture
-def mock_application_config(mock_api_configuration, mock_task_configuration):
+def mock_application_config(mock_api_configuration):
     """Fixture to provide a complete mock application configuration."""
-    from config.config_manager import ApplicationConfiguration, ModelFilteringConfiguration
+    from config.config_manager import ApplicationConfiguration
 
     return ApplicationConfiguration(
         api_config=mock_api_configuration,
-        model_filtering=ModelFilteringConfiguration(),
-        tasks_config=mock_task_configuration
     )
 
 

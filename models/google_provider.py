@@ -34,7 +34,7 @@ class GoogleModelProvider(BaseModelProvider):
         """
         Dynamically fetch available Google Gemini models from the API.
         """
-        from models.model_loader import is_text_model
+        from models.model_filter import is_text_model
 
         try:
             if genai is None:
@@ -59,8 +59,6 @@ class GoogleModelProvider(BaseModelProvider):
             for model in models:
                 model_name = model.name.split('/')[-1] if '/' in model.name else model.name
                 supported_actions = getattr(model, 'supported_actions', None)
-                if supported_actions:
-                    supported_actions = [action for action in supported_actions]
 
                 if (is_text_model(model_name, 'google') and "gemini" in model_name.lower() and
                         (supported_actions is None or 'generateContent' in supported_actions)):
@@ -78,7 +76,7 @@ class GoogleModelProvider(BaseModelProvider):
         """
         Fallback Google models if dynamic fetching fails.
         """
-        from models.model_loader import is_text_model
+        from models.model_filter import is_text_model
 
         model_ids = [
             "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp",

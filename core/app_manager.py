@@ -5,110 +5,21 @@ Application manager for AIRefiner - separates business logic from UI logic.
 from typing import Dict, Any, Optional, Tuple
 from config.constants import TaskConfiguration
 from models import model_loader
-from utils.error_handler import ErrorHandler, ModelInitializationError, ProcessingError, with_error_handling, CircuitBreaker
+from utils.error_handler import handle_error, ModelInitializationError, ProcessingError, CircuitBreaker
 from utils.logger import LoggerMixin
-
-
-class AppState:
-    """Application state management."""
-
-    def __init__(self):
-        self.selected_model: Optional[str] = None
-        self.selected_task: Optional[Dict[str, Any]] = None
-        self.last_result: Optional[str] = None
-        self.last_result_task_id: Optional[str] = None
-        self.last_result_is_error: bool = False
-        self.should_exit: bool = False
-        self.initialized_models: Dict[str, Any] = {}
-        self.initialization_errors: Dict[str, str] = {}
-
-
-class ModelManager(LoggerMixin):
-    """Manages AI model initialization and access."""
-
-    def __init__(self):
-        super().__init__()
-        self._models: Dict[str, Any] = {}
-        self._errors: Dict[str, str] = {}
-        self._initialized = False
-
-    def initialize_models(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """
-        Initialize all AI models.
-        
-        Returns:
-            Tuple of (initialized_models, initialization_errors)
-            
-        Raises:
-            ModelInitializationError: If no models are successfully initialized
-        """
-        self.logger.info("Attempting to initialize AI models...")
-
-        try:
-            self._models, self._errors = model_loader.initialize_models()
-
-            if not self._models:
-                error_msg = "No AI models were successfully initialized."
-
-                if self._errors:
-                    error_details = "\n".join(f"- {key}: {error_msg}" for key, error_msg in self._errors.items())
-                    error_msg += f"\nErrors:\n{error_details}"
-                else:
-                    error_msg += "\nPlease check your .env file for correct API keys and network connection."
-
-                raise ModelInitializationError(error_msg, "all_models")
-
-            self._initialized = True
-            self.logger.info(f"Successfully initialized {len(self._models)} models")
-            return self._models, self._errors
-
-        except ModelInitializationError:
-            raise  # Re-raise our custom error
-        except Exception as e:
-            raise ModelInitializationError(
-                f"Unexpected error during model initialization: {e}",
-                "model_loader",
-                e
-            )
-
-    def get_models(self) -> Dict[str, Any]:
-        """Get initialized models."""
-        if not self._initialized:
-            raise RuntimeError("Models not initialized. Call initialize_models() first.")
-        return self._models
-
-    def get_model(self, model_key: str) -> Optional[Any]:
-        """Get a specific model by key."""
-        return self._models.get(model_key)
-
-    def get_available_model_keys(self) -> list[str]:
-        """Get sorted list of available model keys."""
-        return sorted(self._models.keys())
 
 
 class TaskProcessor(LoggerMixin):
     """Handles task processing and model execution."""
 
-    def __init__(self, model_manager: ModelManager):
+    def __init__(self, get_model):
         super().__init__()
-        self.model_manager = model_manager
+        self.get_model = get_model
         self.circuit_breakers: Dict[str, CircuitBreaker] = {}
         self._translation_handler = None
 
     def execute_task(self, model_key: str, text_input: str, task_id: str) -> str:
-        """
-        Execute a task using the specified model.
-        
-        Args:
-            model_key: Key of the model to use
-            text_input: Input text to process
-            task_id: ID of the task to execute
-            
-        Returns:
-            Result of the task execution
-        """
         try:
-            # Get or create a circuit breaker for the selected model
             if model_key not in self.circuit_breakers:
                 self.logger.info(f"Creating new circuit breaker for model '{model_key}'")
                 self.circuit_breakers[model_key] = CircuitBreaker(name=model_key)
@@ -119,13 +30,12 @@ class TaskProcessor(LoggerMixin):
             from utils.translation_handler import TranslationHandler
             from prompts import refine_prompts
 
-            model_instance = self.model_manager.get_model(model_key)
+            model_instance = self.get_model(model_key)
             if not model_instance:
                 raise ProcessingError(f"Model '{model_key}' not found", task_id)
 
             output_parser = StrOutputParser()
 
-            # Get appropriate prompt based on task
             if task_id == TaskConfiguration.AUTO_TRANSLATE:
                 if self._translation_handler is None:
                     self._translation_handler = TranslationHandler()
@@ -140,24 +50,18 @@ class TaskProcessor(LoggerMixin):
             if not prompt_template_str:
                 raise ProcessingError(f"Prompt for task '{task_id}' not found", task_id)
 
-            # Execute the chain
             prompt_template = ChatPromptTemplate.from_template(prompt_template_str)
             chain = prompt_template | model_instance | output_parser
 
             self.logger.info(f"Executing task '{task_id}' with model '{model_key}'")
-            # Execute the chain through the circuit breaker
-            result = circuit_breaker.call(
-                chain.invoke, {"user_text": text_input}
-            )
-            self.logger.info(f"Task execution completed successfully")
-
+            result = circuit_breaker.call(chain.invoke, {"user_text": text_input})
+            self.logger.info("Task execution completed successfully")
             return result
 
         except ProcessingError:
-            raise  # Re-raise our custom error
+            raise
         except Exception as e:
-            error_handler = ErrorHandler()
-            error_msg = error_handler.handle_error(e, f"Task execution ({task_id})")
+            error_msg = handle_error(e, f"Task execution ({task_id})")
             raise ProcessingError(error_msg, task_id, e)
 
 
@@ -166,114 +70,102 @@ class ApplicationManager(LoggerMixin):
 
     def __init__(self):
         super().__init__()
-        self.app_state = AppState()
-        self.model_manager = ModelManager()
-        self.task_processor = TaskProcessor(self.model_manager)
+        # State
+        self.selected_model: Optional[str] = None
+        self.selected_task: Optional[Dict[str, Any]] = None
+        self.last_result: Optional[str] = None
+        self.last_result_task_id: Optional[str] = None
+        self.last_result_is_error: bool = False
+        self._exit_requested: bool = False
+
+        # Models
+        self._models: Dict[str, Any] = {}
+        self._errors: Dict[str, str] = {}
+
+        self.task_processor = TaskProcessor(self._get_model)
+
+    def _get_model(self, model_key: str) -> Optional[Any]:
+        return self._models.get(model_key)
 
     def initialize(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """
-        Initialize the application.
-        
-        Returns:
-            Tuple of (initialized_models, initialization_errors)
-        """
-        models, errors = self.model_manager.initialize_models()
-        self.app_state.initialized_models = models
-        self.app_state.initialization_errors = errors
-        return models, errors
+        self.logger.info("Attempting to initialize AI models...")
+        try:
+            self._models, self._errors = model_loader.initialize_models()
+
+            if not self._models:
+                msg = "No AI models were successfully initialized."
+                if self._errors:
+                    details = "\n".join(f"- {key}: {err}" for key, err in self._errors.items())
+                    msg += f"\nErrors:\n{details}"
+                else:
+                    msg += "\nPlease check your .env file for correct API keys and network connection."
+                raise ModelInitializationError(msg, "all_models")
+
+            self.logger.info(f"Successfully initialized {len(self._models)} models")
+            return self._models, self._errors
+
+        except ModelInitializationError:
+            raise
+        except Exception as e:
+            raise ModelInitializationError(
+                f"Unexpected error during model initialization: {e}",
+                "model_loader", e
+            )
 
     def get_available_models(self) -> list[str]:
-        """Get list of available model keys."""
-        return self.model_manager.get_available_model_keys()
-
-    def set_selected_model(self, model_key: str):
-        """Set the selected model."""
-        self.app_state.selected_model = model_key
-        self.logger.info(f"Selected model: {model_key}")
-
-    def set_selected_task(self, task: Dict[str, Any]):
-        """Set the selected task."""
-        self.app_state.selected_task = task
-        self.logger.info(f"Selected task: {task.get('name', 'Unknown')}")
+        return sorted(self._models.keys())
 
     def process_text(self, text_input: str) -> str:
-        """
-        Process text using the current model and task.
-        
-        Args:
-            text_input: Input text to process
-            
-        Returns:
-            Processed text result
-        """
         try:
-            if not self.app_state.selected_model:
+            if not self.selected_model:
                 raise ProcessingError("No model selected", "unknown")
-
-            if not self.app_state.selected_task:
+            if not self.selected_task:
                 raise ProcessingError("No task selected", "unknown")
 
             result = self.task_processor.execute_task(
-                self.app_state.selected_model,
-                text_input,
-                self.app_state.selected_task['id']
+                self.selected_model, text_input, self.selected_task['id']
             )
-
-            self.app_state.last_result = result
-            self.app_state.last_result_task_id = self.app_state.selected_task['id']
-            self.app_state.last_result_is_error = False
+            self.last_result = result
+            self.last_result_task_id = self.selected_task['id']
+            self.last_result_is_error = False
             return result
 
         except ProcessingError as e:
-            error_handler = ErrorHandler()
-            error_msg = error_handler.handle_error(e, "Text processing")
-            self.app_state.last_result = None
-            self.app_state.last_result_task_id = None
-            self.app_state.last_result_is_error = True
+            error_msg = handle_error(e, "Text processing")
+            self.last_result = None
+            self.last_result_task_id = None
+            self.last_result_is_error = True
             return f"Error: {error_msg}"
         except Exception as e:
-            error_handler = ErrorHandler()
-            error_msg = error_handler.handle_error(e, "Text processing")
-            self.app_state.last_result = None
-            self.app_state.last_result_task_id = None
-            self.app_state.last_result_is_error = True
+            error_msg = handle_error(e, "Text processing")
+            self.last_result = None
+            self.last_result_task_id = None
+            self.last_result_is_error = True
             return f"Unexpected error: {error_msg}"
 
     def should_refine_further(self) -> bool:
-        """Check if the user can refine the result further."""
-        return (self.app_state.selected_task is not None and
-                self.app_state.last_result is not None and
-                not self.app_state.last_result_is_error)
+        return (self.selected_task is not None and
+                self.last_result is not None and
+                not self.last_result_is_error)
 
     def can_use_previous_result(self) -> bool:
-        """Check if the previous result can be used as input."""
-        return (self.app_state.selected_task and
-                self.app_state.last_result is not None and
-                self.app_state.last_result_task_id == self.app_state.selected_task['id'])
+        return (self.selected_task is not None and
+                self.last_result is not None and
+                self.last_result_task_id == self.selected_task['id'])
 
     def get_previous_result(self) -> Optional[str]:
-        """Get the previous result."""
-        return self.app_state.last_result
+        return self.last_result
 
-    def reset_model_selection(self):
-        """Reset model selection."""
-        self.app_state.selected_model = None
-
-    def reset_task_selection(self):
-        """Reset task selection."""
-        self.app_state.selected_task = None
-
-    def clear_previous_result(self):
-        """Clear previous result when starting a new task."""
-        self.app_state.last_result = None
-        self.app_state.last_result_task_id = None
-        self.app_state.last_result_is_error = False
+    def reset_state(self):
+        self.selected_model = None
+        self.selected_task = None
+        self.last_result = None
+        self.last_result_task_id = None
+        self.last_result_is_error = False
 
     def exit_application(self):
-        """Signal application exit."""
-        self.app_state.should_exit = True
+        self._exit_requested = True
         self.logger.info("Application exit requested")
 
-    def should_exit(self) -> bool:
-        """Check if application should exit."""
-        return self.app_state.should_exit
+    def is_exit_requested(self) -> bool:
+        return self._exit_requested
