@@ -5,6 +5,7 @@ Console user interface for AIRefiner application.
 from typing import Dict, Any, Optional, List
 
 from config.constants import UIConfig
+from models.model_filter import natural_sort_key
 from utils import input_helpers
 from utils.logger import LoggerMixin
 
@@ -100,7 +101,8 @@ class ConsoleInterface(LoggerMixin):
             provider_display = _display_names.get(provider.lower(), provider.capitalize())
             grouped.setdefault(provider_display, []).append((model, model_name))
 
-        return {p: sorted(models, key=lambda x: x[1]) for p, models in sorted(grouped.items())}
+        return {p: sorted(models, key=lambda x: natural_sort_key(x[1]))
+                for p, models in sorted(grouped.items())}
 
     # ── Task selection ───────────────────────────────────────────────
 

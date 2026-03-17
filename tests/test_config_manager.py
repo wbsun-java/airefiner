@@ -3,7 +3,7 @@ Unit tests for configuration manager.
 """
 
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

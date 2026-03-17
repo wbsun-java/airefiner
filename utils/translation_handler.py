@@ -15,7 +15,7 @@ except ImportError:
 
 from prompts.translate_prompts import TRANSLATE_EN_TO_ZH_PROMPT, TRANSLATE_ZH_TO_EN_PROMPT
 from prompts.refine_prompts import REFINE_TEXT_PROMPT
-from config.constants import LanguageSupport, LanguageDetection, TaskConfiguration
+from config.constants import LanguageSupport, TaskConfiguration
 from utils.logger import LoggerMixin
 
 
@@ -40,21 +40,21 @@ class TranslationHandler(LoggerMixin):
             return 'unknown', 0.0
 
     def _calculate_confidence(self, text: str, detected_lang: str) -> float:
-        base_confidence = LanguageDetection.BASE_CONFIDENCE
-        length_bonus = min(len(text) / LanguageDetection.LENGTH_DIVISOR, LanguageDetection.MAX_LENGTH_BONUS)
+        base_confidence = LanguageSupport.BASE_CONFIDENCE
+        length_bonus = min(len(text) / LanguageSupport.LENGTH_DIVISOR, LanguageSupport.MAX_LENGTH_BONUS)
         pattern_bonus = 0.0
 
         if detected_lang in ['zh', 'zh-cn', 'zh-tw']:
             chinese_range = LanguageSupport.CHINESE_UNICODE_RANGE
             chinese_chars = sum(1 for c in text if chinese_range[0] <= ord(c) <= chinese_range[1])
             if chinese_chars > 0:
-                pattern_bonus = min(chinese_chars / len(text), LanguageDetection.MAX_PATTERN_BONUS)
+                pattern_bonus = min(chinese_chars / len(text), LanguageSupport.MAX_PATTERN_BONUS)
         elif detected_lang == 'en':
             text_words = set(text.lower().split())
             english_words = set(LanguageSupport.COMMON_ENGLISH_WORDS)
             match_count = len(text_words.intersection(english_words))
             if match_count > 0:
-                pattern_bonus = min(match_count / 10, LanguageDetection.MAX_PATTERN_BONUS)
+                pattern_bonus = min(match_count / 10, LanguageSupport.MAX_PATTERN_BONUS)
 
         return min(base_confidence + length_bonus + pattern_bonus, 1.0)
 

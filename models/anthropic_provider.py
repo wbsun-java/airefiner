@@ -33,7 +33,7 @@ class AnthropicModelProvider(BaseModelProvider):
         """
         Dynamically fetch available Anthropic Claude models from the API.
         """
-        from models.model_filter import is_text_model
+        from models.model_filter import is_text_model, deduplicate_models
 
         try:
             if anthropic_sdk is None:
@@ -42,13 +42,16 @@ class AnthropicModelProvider(BaseModelProvider):
             client = anthropic_sdk.Anthropic(api_key=self.api_key)
             models_page = client.models.list()
 
-            anthropic_models = []
+            # Collect model_id -> display_name mapping, then deduplicate IDs
+            model_names = {}
             for model in models_page.data:
                 model_id = model.id
                 display_name = getattr(model, 'display_name', model_id) or model_id
-
                 if model_id and is_text_model(model_id, 'anthropic') and "claude" in model_id.lower():
-                    anthropic_models.append(self.create_model_definition(model_id, display_name))
+                    model_names[model_id] = display_name
+
+            deduped = deduplicate_models(list(model_names.keys()))
+            anthropic_models = [self.create_model_definition(m, model_names[m]) for m in deduped]
 
             info(f"Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
             return anthropic_models

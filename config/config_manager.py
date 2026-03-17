@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 from config.constants import ModelProvider, TaskConfiguration, DEFAULT_TEMPERATURE
-from utils.logger import LoggerMixin
+from utils.logger import info, warning, error as log_error
 
 
 # Hardcoded tasks - these don't change at runtime
@@ -100,13 +100,11 @@ class ApplicationConfiguration:
 
 # Module-level config state
 _config: Optional[ApplicationConfiguration] = None
-_logger_mixin = LoggerMixin()
 
 
 def load_config() -> ApplicationConfiguration:
     global _config
-    logger = _logger_mixin.logger
-    logger.info("Loading application configuration...")
+    info("Loading application configuration...")
 
     api_config = APIConfiguration.from_environment()
     config = ApplicationConfiguration(api_config=api_config)
@@ -114,18 +112,18 @@ def load_config() -> ApplicationConfiguration:
     errors = config.validate()
     if errors:
         error_msg = "Configuration validation failed:\n" + "\n".join(f"- {e}" for e in errors)
-        logger.error(error_msg)
+        log_error(error_msg)
         raise ValueError(error_msg)
 
     _config = config
-    logger.info("Configuration loaded and validated successfully")
+    info("Configuration loaded and validated successfully")
 
     available_providers = config.api_config.get_available_providers()
-    logger.info(f"Available API providers: {', '.join(available_providers) if available_providers else 'None'}")
-    logger.info(f"Default temperature: {config.default_temperature}")
+    info(f"Available API providers: {', '.join(available_providers) if available_providers else 'None'}")
+    info(f"Default temperature: {config.default_temperature}")
 
     if not available_providers:
-        logger.warning("No API keys found - application may not function properly")
+        warning("No API keys found - application may not function properly")
 
     return config
 

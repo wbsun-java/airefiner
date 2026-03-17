@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import BaseMessage, SystemMessage, AIMessage
 from langchain_core.outputs import ChatResult, ChatGeneration
 
 from models.base_model_provider import BaseModelProvider
@@ -67,16 +67,16 @@ class XAIModelProvider(BaseModelProvider):
 
     def fetch_models(self) -> List[Dict[str, Any]]:
         """Fetch available xAI language models using the xAI SDK."""
+        from models.model_filter import is_text_model, deduplicate_models
+
         try:
             if xai_sdk is None:
                 raise ImportError("xai-sdk package not available")
 
             client = xai_sdk.Client(api_key=self.api_key)
-            models = [
-                self.create_model_definition(model.name)
-                for model in client.models.list_language_models()
-                if getattr(model, "name", None)
-            ]
+            model_ids = [m.name for m in client.models.list_language_models()
+                         if getattr(m, "name", None) and is_text_model(m.name, 'xai')]
+            models = [self.create_model_definition(m) for m in deduplicate_models(model_ids)]
 
             info(f"Fetched {len(models)} xAI models dynamically")
             return models
@@ -87,5 +87,8 @@ class XAIModelProvider(BaseModelProvider):
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
         """Fallback xAI models if dynamic fetching fails."""
+        from models.model_filter import is_text_model
+
         model_ids = ["grok-4-0709", "grok-3", "grok-3-mini"]
-        return [self.create_model_definition(m) for m in model_ids]
+        return [self.create_model_definition(m) for m in model_ids
+                if is_text_model(m, 'xai')]

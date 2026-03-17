@@ -33,7 +33,7 @@ class GroqModelProvider(BaseModelProvider):
         """
         Dynamically fetch available Groq models from the API.
         """
-        from models.model_filter import is_text_model
+        from models.model_filter import is_text_model, deduplicate_models
 
         try:
             if Groq is None:
@@ -42,11 +42,8 @@ class GroqModelProvider(BaseModelProvider):
             client = Groq(api_key=self.api_key)
             models = client.models.list()
 
-            groq_models = []
-            for model in models.data:
-                model_id = model.id
-                if is_text_model(model_id, 'groq'):
-                    groq_models.append(self.create_model_definition(model_id))
+            model_ids = [m.id for m in models.data if is_text_model(m.id, 'groq')]
+            groq_models = [self.create_model_definition(m) for m in deduplicate_models(model_ids)]
 
             info(f"Fetched {len(groq_models)} Groq models dynamically")
             return groq_models

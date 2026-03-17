@@ -44,7 +44,7 @@ class ModelFiltering:
     ]
 
     PROVIDER_EXCLUSIONS: Dict[str, List[str]] = {
-        ModelProvider.OPENAI.value: ['davinci-edit', 'curie-edit', 'babbage-edit', 'ada-edit'],
+        ModelProvider.OPENAI.value: ['davinci-edit', 'curie-edit', 'babbage-edit', 'ada-edit', 'o1-pro'],
         ModelProvider.GOOGLE.value: ['bison', 'gecko', 'otter', 'unicorn', 'computer-use'],
         ModelProvider.ANTHROPIC.value: [],
         ModelProvider.GROQ.value: ['whisper', 'distil-whisper'],
@@ -63,35 +63,17 @@ class TaskConfiguration:
 class LanguageSupport:
     """Language support configuration."""
 
-    SUPPORTED_LANGUAGES = {
-        'en': 'English',
-        'zh-cn': 'Simplified Chinese',
-        'zh-tw': 'Traditional Chinese',
-        'zh': 'Chinese'
-    }
-
-    LANGUAGE_MAPPING = {
-        'en': 'english',
-        'zh-cn': 'chinese',
-        'zh-tw': 'chinese',
-        'zh': 'chinese'
-    }
-
     CHINESE_UNICODE_RANGE = (0x4e00, 0x9fff)
 
     COMMON_ENGLISH_WORDS = [
         'the', 'and', 'to', 'of', 'a', 'in', 'is', 'it', 'you', 'that'
     ]
 
-    # Language detection tuning (absorbed from LanguageDetection)
+    # Language detection tuning
     BASE_CONFIDENCE = 0.7
     MAX_LENGTH_BONUS = 0.2
     MAX_PATTERN_BONUS = 0.1
     LENGTH_DIVISOR = 100
-
-
-# Keep LanguageDetection as alias for backward compatibility during transition
-LanguageDetection = LanguageSupport
 
 
 class UIConfig:
@@ -103,7 +85,3 @@ class UIConfig:
     WARNING_PREFIX = "⚠️"
     INFO_PREFIX = "ℹ️"
     LOADING_PREFIX = "⏳"
-    SEARCH_PREFIX = "🔎"
-    CACHE_PREFIX = "📋"
-    SAVE_PREFIX = "💾"
-    STATS_PREFIX = "📊"

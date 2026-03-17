@@ -7,7 +7,6 @@ from typing import Dict, Any, Tuple
 
 from config.config_manager import get_config
 from config.constants import CACHE_DURATION_SECONDS
-from models.model_filter import is_text_model  # noqa: F401 - re-exported for backward compatibility
 from utils.logger import info, warning, error
 
 # Global cache for model definitions
