@@ -90,9 +90,5 @@ def error(message: str, *args, **kwargs):
     _log.error(message, *args, **kwargs)
 
 
-def debug(message: str, *args, **kwargs):
-    _log.debug(message, *args, **kwargs)
-
-
 def exception(message: str, *args, **kwargs):
     _log.exception(message, *args, **kwargs)

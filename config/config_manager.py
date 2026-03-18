@@ -37,7 +37,7 @@ class APIConfiguration:
     groq_key: Optional[str] = None
     xai_key: Optional[str] = None
 
-    api_key_arg_names: Dict[str, str] = field(default_factory=lambda: _API_KEY_ARG_NAMES)
+    api_key_arg_names: Dict[str, str] = field(default_factory=_API_KEY_ARG_NAMES.copy)
 
     @classmethod
     def from_environment(cls) -> 'APIConfiguration':
