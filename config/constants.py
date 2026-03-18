@@ -55,6 +55,7 @@ class ModelFiltering:
 class TaskConfiguration:
     """Task configuration constants."""
     REFINE = "refine"
+    REFINE_PRESENTATION = "refine_presentation"
     TRANSLATE_EN_TO_ZH = "en_to_zh"
     TRANSLATE_ZH_TO_EN = "zh_to_en"
     AUTO_TRANSLATE = "auto_translate"

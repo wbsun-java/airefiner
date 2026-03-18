@@ -8,6 +8,7 @@ from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage
 from langchain_core.outputs import ChatResult, ChatGeneration
+from pydantic import PrivateAttr
 
 from models.base_model_provider import BaseModelProvider
 from utils.logger import info, error
@@ -26,9 +27,16 @@ class ChatXAI(BaseChatModel):
     xai_api_key: str
     temperature: float = 0.7
 
+    _client: Any = PrivateAttr(default=None)
+
     @property
     def _llm_type(self) -> str:
         return "xai"
+
+    def _get_client(self) -> Any:
+        if self._client is None:
+            self._client = xai_sdk.Client(api_key=self.xai_api_key)
+        return self._client
 
     def _generate(
         self,
@@ -37,7 +45,7 @@ class ChatXAI(BaseChatModel):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        client = xai_sdk.Client(api_key=self.xai_api_key)
+        client = self._get_client()
 
         xai_messages = []
         for msg in messages:

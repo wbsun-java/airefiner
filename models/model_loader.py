@@ -3,6 +3,7 @@ Model loader - orchestrates dynamic fetching and initialization of AI models fro
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, Tuple
 
 from config.config_manager import get_config
@@ -47,20 +48,26 @@ def get_model_definitions() -> Dict[str, list]:
     config = get_config()
     api_keys = config.api_config.get_api_keys()
 
-    model_definitions = {}
-    for provider_name in _PROVIDER_REGISTRY:
+    def _load_provider(provider_name: str) -> tuple[str, list]:
         api_key = api_keys.get(provider_name)
         try:
             provider_cls = _get_provider_class(provider_name)
             provider = provider_cls(api_key=api_key or "")
             if api_key:
-                model_definitions[provider_name] = provider.fetch_models()
+                return provider_name, provider.fetch_models()
             else:
                 warning(f"⚪ {provider_name.capitalize()} API key not found, using fallback models")
-                model_definitions[provider_name] = provider.get_fallback_models()
+                return provider_name, provider.get_fallback_models()
         except Exception as e:
             error(f"❌ Failed to load {provider_name} provider: {e}")
-            model_definitions[provider_name] = []
+            return provider_name, []
+
+    model_definitions = {}
+    with ThreadPoolExecutor(max_workers=len(_PROVIDER_REGISTRY)) as executor:
+        futures = {executor.submit(_load_provider, name): name for name in _PROVIDER_REGISTRY}
+        for future in as_completed(futures):
+            provider_name, models = future.result()
+            model_definitions[provider_name] = models
 
     _model_cache = model_definitions
     _cache_timestamp = current_time

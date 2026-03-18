@@ -13,8 +13,17 @@ from utils.logger import info, warning, error as log_error
 # Hardcoded tasks - these don't change at runtime
 TASKS: Dict[str, Dict[str, Any]] = {
     "1": {"id": TaskConfiguration.REFINE, "name": "Refine Text (Email, Article, etc.)"},
-    "2": {"id": "refine_presentation", "name": "Refine Presentation (Summarize Article)"},
+    "2": {"id": TaskConfiguration.REFINE_PRESENTATION, "name": "Refine Presentation (Summarize Article)"},
     "3": {"id": TaskConfiguration.AUTO_TRANSLATE, "name": "Auto-Translate (Detect Language & Translate)"},
+}
+
+
+_API_KEY_ARG_NAMES: Dict[str, str] = {
+    ModelProvider.OPENAI.value: "openai_api_key",
+    ModelProvider.ANTHROPIC.value: "anthropic_api_key",
+    ModelProvider.GOOGLE.value: "google_api_key",
+    ModelProvider.GROQ.value: "groq_api_key",
+    ModelProvider.XAI.value: "xai_api_key",
 }
 
 
@@ -28,13 +37,7 @@ class APIConfiguration:
     groq_key: Optional[str] = None
     xai_key: Optional[str] = None
 
-    api_key_arg_names: Dict[str, str] = field(default_factory=lambda: {
-        ModelProvider.OPENAI.value: "openai_api_key",
-        ModelProvider.ANTHROPIC.value: "anthropic_api_key",
-        ModelProvider.GOOGLE.value: "google_api_key",
-        ModelProvider.GROQ.value: "groq_api_key",
-        ModelProvider.XAI.value: "xai_api_key",
-    })
+    api_key_arg_names: Dict[str, str] = field(default_factory=lambda: _API_KEY_ARG_NAMES)
 
     @classmethod
     def from_environment(cls) -> 'APIConfiguration':

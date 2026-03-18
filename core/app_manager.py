@@ -27,7 +27,6 @@ class TaskProcessor(LoggerMixin):
 
             from langchain_core.prompts import ChatPromptTemplate
             from langchain_core.output_parsers import StrOutputParser
-            from utils.translation_handler import TranslationHandler
             from prompts import refine_prompts
 
             model_instance = self.get_model(model_key)
@@ -38,12 +37,13 @@ class TaskProcessor(LoggerMixin):
 
             if task_id == TaskConfiguration.AUTO_TRANSLATE:
                 if self._translation_handler is None:
+                    from utils.translation_handler import TranslationHandler
                     self._translation_handler = TranslationHandler()
                 prompt_template_str = self._translation_handler.get_translation_prompt(text_input)
             else:
                 prompt_map = {
                     TaskConfiguration.REFINE: refine_prompts.REFINE_TEXT_PROMPT,
-                    "refine_presentation": refine_prompts.REFINE_PRESENTATION_PROMPT,
+                    TaskConfiguration.REFINE_PRESENTATION: refine_prompts.REFINE_PRESENTATION_PROMPT,
                 }
                 prompt_template_str = prompt_map.get(task_id)
 
