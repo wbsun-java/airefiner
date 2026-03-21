@@ -37,7 +37,7 @@ class ModelFiltering:
         'code', 'programming', 'dev', 'developer',
         'moderation', 'safety', 'content-filter', 'toxic',
         'fine-tune', 'finetune', 'training', 'custom',
-        'reasoning', 'math', 'science', 'research',
+        'math', 'science', 'research',
         'guard', 'guardian', 'safety-model',
         'edit', 'davinci-edit', 'curie-edit',
         'realtime', 'real-time', 'search', 'transcribe', 'transcription'
