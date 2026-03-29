@@ -3,9 +3,7 @@ Google Gemini model provider - fetches and manages Google AI models.
 """
 
 import time
-from typing import List, Dict, Any
-
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
 from utils.logger import info, warning, error
@@ -17,23 +15,25 @@ except ImportError:
 
 
 class GoogleModelProvider(BaseModelProvider):
-    """
-    Google model provider using the google-genai SDK.
-    """
 
     def __init__(self, api_key: str, provider_name: str = "google"):
         super().__init__(api_key, provider_name)
 
-    def get_model_class(self):
-        return ChatGoogleGenerativeAI
+    def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
+        client = genai.Client(api_key=api_key)
+        temperature = self.default_temperature
 
-    def get_model_id_key(self) -> str:
-        return "model"
+        def call(prompt: str) -> str:
+            response = client.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(temperature=temperature),
+            )
+            return response.text
+
+        return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        """
-        Dynamically fetch available Google Gemini models from the API.
-        """
         from models.model_filter import is_text_model, deduplicate_models
 
         try:
@@ -74,9 +74,6 @@ class GoogleModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        """
-        Fallback Google models if dynamic fetching fails.
-        """
         from models.model_filter import is_text_model
 
         model_ids = [
