@@ -2,9 +2,7 @@
 Anthropic model provider - fetches and manages Anthropic Claude models.
 """
 
-from typing import List, Dict, Any
-
-from langchain_anthropic import ChatAnthropic
+from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
 from utils.logger import info, error
@@ -16,23 +14,26 @@ except ImportError:
 
 
 class AnthropicModelProvider(BaseModelProvider):
-    """
-    Anthropic model provider using the official Anthropic SDK.
-    """
 
     def __init__(self, api_key: str, provider_name: str = "anthropic"):
         super().__init__(api_key, provider_name)
 
-    def get_model_class(self):
-        return ChatAnthropic
+    def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
+        client = anthropic_sdk.Anthropic(api_key=api_key)
+        temperature = self.default_temperature
 
-    def get_model_id_key(self) -> str:
-        return "model"
+        def call(prompt: str) -> str:
+            message = client.messages.create(
+                model=model_id,
+                max_tokens=1024,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return message.content[0].text
+
+        return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        """
-        Dynamically fetch available Anthropic Claude models from the API.
-        """
         from models.model_filter import is_text_model, deduplicate_models
 
         try:
@@ -42,7 +43,6 @@ class AnthropicModelProvider(BaseModelProvider):
             client = anthropic_sdk.Anthropic(api_key=self.api_key)
             models_page = client.models.list()
 
-            # Collect model_id -> display_name mapping, then deduplicate IDs
             model_names = {}
             for model in models_page.data:
                 model_id = model.id
@@ -62,9 +62,6 @@ class AnthropicModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        """
-        Fallback Anthropic models if dynamic fetching fails.
-        """
         from models.model_filter import is_text_model
 
         fallback_models = [
