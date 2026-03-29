@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Callable
 from openai import OpenAI
 
 from models.base_model_provider import BaseModelProvider
+from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info, error
 
 
@@ -30,8 +31,6 @@ class OpenAIModelProvider(BaseModelProvider):
         return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model, deduplicate_models
-
         try:
             client = OpenAI(api_key=self.api_key)
             models = client.models.list()
@@ -48,8 +47,6 @@ class OpenAIModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model
-
         model_ids = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
         return [
             self.create_model_definition(model_id)

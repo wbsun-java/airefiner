@@ -6,6 +6,7 @@ import time
 from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
+from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info, warning, error
 
 try:
@@ -34,8 +35,6 @@ class GoogleModelProvider(BaseModelProvider):
         return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model, deduplicate_models
-
         try:
             if genai is None:
                 raise ImportError("google-genai package not available")
@@ -49,11 +48,10 @@ class GoogleModelProvider(BaseModelProvider):
                     models = list(client.models.list())
                     break
                 except Exception as e:
-                    if attempt < max_retries - 1:
-                        warning(f"Attempt {attempt + 1} failed to fetch Google models: {e}. Retrying...")
-                        time.sleep(2)
-                    else:
-                        raise e
+                    if attempt == max_retries - 1:
+                        raise
+                    warning(f"Attempt {attempt + 1} failed to fetch Google models: {e}. Retrying...")
+                    time.sleep(2)
 
             model_ids = []
             for model in models:
@@ -74,8 +72,6 @@ class GoogleModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model
-
         model_ids = [
             "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp",
             "gemini-2.5-flash", "gemini-2.5-pro",

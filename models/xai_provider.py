@@ -4,7 +4,11 @@ xAI model provider - fetches and manages xAI Grok models.
 
 from typing import List, Dict, Any, Callable
 
+from xai_sdk import Client
+from xai_sdk.chat import user as xai_user
+
 from models.base_model_provider import BaseModelProvider
+from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info, error
 
 
@@ -14,9 +18,6 @@ class XAIModelProvider(BaseModelProvider):
         super().__init__(api_key, provider_name)
 
     def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
-        from xai_sdk import Client
-        from xai_sdk.chat import user as xai_user
-
         client = Client(api_key=api_key)
 
         def call(prompt: str) -> str:
@@ -28,9 +29,6 @@ class XAIModelProvider(BaseModelProvider):
         return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model, deduplicate_models
-        from xai_sdk import Client
-
         try:
             client = Client(api_key=self.api_key)
             language_models = client.models.list_language_models()
@@ -49,8 +47,6 @@ class XAIModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model
-
         model_ids = ["grok-4-0709", "grok-3", "grok-3-mini"]
         return [self.create_model_definition(m) for m in model_ids
                 if is_text_model(m, 'xai')]

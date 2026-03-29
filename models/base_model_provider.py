@@ -29,10 +29,6 @@ class BaseModelProvider(ABC, LoggerMixin):
 
     @abstractmethod
     def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
-        """
-        Return a callable that accepts a formatted prompt string and returns
-        the model's text response.
-        """
         pass
 
     def create_model_definition(self, model_id: str, display_name: Optional[str] = None) -> Dict[str, Any]:

@@ -5,6 +5,7 @@ Groq model provider - fetches and manages Groq models.
 from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
+from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info, error
 
 try:
@@ -33,8 +34,6 @@ class GroqModelProvider(BaseModelProvider):
         return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model, deduplicate_models
-
         try:
             if Groq is None:
                 raise ImportError("groq package not available")
@@ -54,8 +53,6 @@ class GroqModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model
-
         model_ids = [
             "llama-3.1-70b-versatile", "llama-3.1-8b-instant",
             "llama3-70b-8192", "llama3-8b-8192",

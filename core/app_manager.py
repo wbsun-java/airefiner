@@ -65,15 +65,12 @@ class ApplicationManager(LoggerMixin):
 
     def __init__(self):
         super().__init__()
-        # State
         self.selected_model: Optional[str] = None
         self.selected_task: Optional[Dict[str, Any]] = None
         self.last_result: Optional[str] = None
         self.last_result_task_id: Optional[str] = None
         self.last_result_is_error: bool = False
         self._exit_requested: bool = False
-
-        # Models
         self._models: Dict[str, Any] = {}
         self._errors: Dict[str, str] = {}
 
@@ -125,18 +122,13 @@ class ApplicationManager(LoggerMixin):
             self.last_result_is_error = False
             return result
 
-        except ProcessingError as e:
+        except (ProcessingError, Exception) as e:
             error_msg = handle_error(e, "Text processing")
             self.last_result = None
             self.last_result_task_id = None
             self.last_result_is_error = True
-            return f"Error: {error_msg}"
-        except Exception as e:
-            error_msg = handle_error(e, "Text processing")
-            self.last_result = None
-            self.last_result_task_id = None
-            self.last_result_is_error = True
-            return f"Unexpected error: {error_msg}"
+            prefix = "" if isinstance(e, ProcessingError) else "Unexpected "
+            return f"{prefix}Error: {error_msg}"
 
     def should_refine_further(self) -> bool:
         return (self.selected_task is not None and

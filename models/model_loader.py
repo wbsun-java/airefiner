@@ -10,12 +10,9 @@ from config.config_manager import get_config
 from config.constants import CACHE_DURATION_SECONDS
 from utils.logger import info, warning, error
 
-# Global cache for model definitions
 _model_cache = {}
 _cache_timestamp = 0
 
-# Provider registry: maps provider name to its provider class import path.
-# Each entry is (module_path, class_name).
 _PROVIDER_REGISTRY = {
     "openai": ("models.openai_provider", "OpenAIModelProvider"),
     "google": ("models.google_provider", "GoogleModelProvider"),

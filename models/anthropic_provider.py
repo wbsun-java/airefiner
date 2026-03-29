@@ -5,6 +5,7 @@ Anthropic model provider - fetches and manages Anthropic Claude models.
 from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
+from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info, error
 
 try:
@@ -34,8 +35,6 @@ class AnthropicModelProvider(BaseModelProvider):
         return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model, deduplicate_models
-
         try:
             if anthropic_sdk is None:
                 raise ImportError("anthropic package not available")
@@ -62,8 +61,6 @@ class AnthropicModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        from models.model_filter import is_text_model
-
         fallback_models = [
             ("claude-3-5-sonnet-20241022", "Claude Sonnet 3.5"),
             ("claude-3-7-sonnet-20250219", "Claude Sonnet 3.7"),
