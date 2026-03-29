@@ -2,9 +2,8 @@
 OpenAI model provider - fetches and manages OpenAI models.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable
 
-from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
 from models.base_model_provider import BaseModelProvider
@@ -12,24 +11,25 @@ from utils.logger import info, error
 
 
 class OpenAIModelProvider(BaseModelProvider):
-    """
-    OpenAI model provider using the official OpenAI SDK.
-    """
 
     def __init__(self, api_key: str, provider_name: str = "openai"):
         super().__init__(api_key, provider_name)
 
-    def get_model_class(self):
-        return ChatOpenAI
+    def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
+        client = OpenAI(api_key=api_key)
+        temperature = self.default_temperature
 
-    def get_model_id_key(self) -> str:
-        return "model_name"
+        def call(prompt: str) -> str:
+            completion = client.chat.completions.create(
+                model=model_id,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return completion.choices[0].message.content
+
+        return call
 
     def fetch_models(self) -> List[Dict[str, Any]]:
-        """
-        Dynamically fetch available OpenAI models from the API.
-        Filters for chat completion models only.
-        """
         from models.model_filter import is_text_model, deduplicate_models
 
         try:
@@ -48,9 +48,6 @@ class OpenAIModelProvider(BaseModelProvider):
             return self.get_fallback_models()
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        """
-        Fallback OpenAI models if dynamic fetching fails.
-        """
         from models.model_filter import is_text_model
 
         model_ids = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
