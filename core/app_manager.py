@@ -25,15 +25,11 @@ class TaskProcessor(LoggerMixin):
                 self.circuit_breakers[model_key] = CircuitBreaker(name=model_key)
             circuit_breaker = self.circuit_breakers[model_key]
 
-            from langchain_core.prompts import ChatPromptTemplate
-            from langchain_core.output_parsers import StrOutputParser
             from prompts import refine_prompts
 
-            model_instance = self.get_model(model_key)
-            if not model_instance:
+            model_callable = self.get_model(model_key)
+            if not model_callable:
                 raise ProcessingError(f"Model '{model_key}' not found", task_id)
-
-            output_parser = StrOutputParser()
 
             if task_id == TaskConfiguration.AUTO_TRANSLATE:
                 if self._translation_handler is None:
@@ -50,11 +46,10 @@ class TaskProcessor(LoggerMixin):
             if not prompt_template_str:
                 raise ProcessingError(f"Prompt for task '{task_id}' not found", task_id)
 
-            prompt_template = ChatPromptTemplate.from_template(prompt_template_str)
-            chain = prompt_template | model_instance | output_parser
+            formatted_prompt = prompt_template_str.format(user_text=text_input)
 
             self.logger.info(f"Executing task '{task_id}' with model '{model_key}'")
-            result = circuit_breaker.call(chain.invoke, {"user_text": text_input})
+            result = circuit_breaker.call(model_callable, formatted_prompt)
             self.logger.info("Task execution completed successfully")
             return result
 
