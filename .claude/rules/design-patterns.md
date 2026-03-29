@@ -10,7 +10,7 @@ description: Key design patterns used in this codebase
 
 **Task IDs** are constants on `TaskConfiguration` in `config/constants.py`. Always use the constant (e.g. `TaskConfiguration.REFINE_PRESENTATION`), never raw strings — the prompt map in `TaskProcessor.execute_task()` uses these as dict keys.
 
-**xAI uses the native `xai-sdk`**: `models/xai_provider.py` imports `Client` from `xai_sdk` and uses the chat builder pattern (`client.chat.create` → `chat.append(user(...))` → `chat.sample()`). Model listing still uses the `openai` client pointed at `https://api.x.ai/v1`.
+**xAI uses the native `xai-sdk` for everything**: `models/xai_provider.py` uses `client.models.list_language_models()` (gRPC) for model listing and the chat builder pattern (`client.chat.create` → `chat.append(user(...))` → `chat.sample()`) for inference.
 
 **Model filtering** (`models/model_filter.py`): `is_text_model()` applies keyword blocklist from `ModelFiltering.NON_TEXT_KEYWORDS` and per-provider exclusions from `ModelFiltering.PROVIDER_EXCLUSIONS`. `deduplicate_models()` drops dated snapshot IDs (e.g. `gpt-4o-2024-11-20`) when a base ID (e.g. `gpt-4o`) exists.
 

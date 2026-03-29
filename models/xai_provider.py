@@ -29,15 +29,19 @@ class XAIModelProvider(BaseModelProvider):
 
     def fetch_models(self) -> List[Dict[str, Any]]:
         from models.model_filter import is_text_model, deduplicate_models
+        from xai_sdk import Client
 
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key, base_url="https://api.x.ai/v1")
+            client = Client(api_key=self.api_key)
+            language_models = client.models.list_language_models()
             model_ids = [
-                m.id for m in client.models.list().data
-                if is_text_model(m.id, 'xai')
+                m.name for m in language_models
+                if is_text_model(m.name, 'xai')
             ]
-            models = [self.create_model_definition(m) for m in deduplicate_models(model_ids)]
+            models = [
+                self.create_model_definition(m)
+                for m in deduplicate_models(model_ids)
+            ]
             info(f"Fetched {len(models)} xAI models dynamically")
             return models
         except Exception as e:
