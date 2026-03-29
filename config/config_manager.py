@@ -3,7 +3,7 @@ Centralized configuration management with validation for AIRefiner.
 """
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
 from config.constants import ModelProvider, TaskConfiguration, DEFAULT_TEMPERATURE
@@ -18,15 +18,6 @@ TASKS: Dict[str, Dict[str, Any]] = {
 }
 
 
-_API_KEY_ARG_NAMES: Dict[str, str] = {
-    ModelProvider.OPENAI.value: "openai_api_key",
-    ModelProvider.ANTHROPIC.value: "anthropic_api_key",
-    ModelProvider.GOOGLE.value: "google_api_key",
-    ModelProvider.GROQ.value: "groq_api_key",
-    ModelProvider.XAI.value: "xai_api_key",
-}
-
-
 @dataclass
 class APIConfiguration:
     """Configuration for API keys and related settings."""
@@ -36,8 +27,6 @@ class APIConfiguration:
     google_key: Optional[str] = None
     groq_key: Optional[str] = None
     xai_key: Optional[str] = None
-
-    api_key_arg_names: Dict[str, str] = field(default_factory=_API_KEY_ARG_NAMES.copy)
 
     @classmethod
     def from_environment(cls) -> 'APIConfiguration':
