@@ -126,6 +126,24 @@ class TestTaskProcessor:
         assert 'bad_model' in task_processor.circuit_breakers
         assert 'good_model' in task_processor.circuit_breakers
 
+    def test_prompt_format_passes_through_curly_braces_in_input(
+        self, task_processor, mock_get_model
+    ):
+        # User input may contain JSON or template-like strings with braces.
+        # str.format() should substitute {user_text} in the template and leave
+        # braces inside the substituted value untouched.
+        mock_model = Mock(return_value="done")
+        mock_get_model.return_value = mock_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Refine: {user_text}"
+            result = task_processor.execute_task(
+                'test_model', '{"key": "value"}', 'refine'
+            )
+
+        assert result == "done"
+        mock_model.assert_called_once_with('Refine: {"key": "value"}')
+
     @patch('utils.translation_handler.TranslationHandler')
     def test_execute_task_auto_translate(self, mock_handler_cls, task_processor, mock_get_model):
         mock_model = Mock(return_value="Translated text")
