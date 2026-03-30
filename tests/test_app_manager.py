@@ -62,6 +62,70 @@ class TestTaskProcessor:
         assert exc_info.value.task_id == 'refine'
         assert isinstance(exc_info.value.original_error, RuntimeError)
 
+    def test_circuit_breaker_opens_after_threshold_failures(
+        self, task_processor, mock_get_model
+    ):
+        # Default threshold is 3 failures
+        mock_model = Mock(side_effect=RuntimeError("API down"))
+        mock_get_model.return_value = mock_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            for _ in range(3):
+                with pytest.raises(ProcessingError):
+                    task_processor.execute_task('test_model', 'input', 'refine')
+
+        cb = task_processor.circuit_breakers['test_model']
+        from utils.error_handler import CircuitBreaker
+        assert cb.state == CircuitBreaker.STATE_OPEN
+
+    def test_open_circuit_raises_without_calling_model(
+        self, task_processor, mock_get_model
+    ):
+        from utils.error_handler import CircuitBreaker, APIError
+        mock_model = Mock(side_effect=RuntimeError("API down"))
+        mock_get_model.return_value = mock_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            for _ in range(3):
+                with pytest.raises(ProcessingError):
+                    task_processor.execute_task('test_model', 'input', 'refine')
+
+        # 4th call — circuit is open, model should NOT be called
+        mock_model.reset_mock()
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            with pytest.raises(ProcessingError) as exc_info:
+                task_processor.execute_task('test_model', 'input', 'refine')
+
+        mock_model.assert_not_called()
+        assert isinstance(exc_info.value.original_error, APIError)
+
+    def test_each_model_key_has_independent_circuit_breaker(
+        self, task_processor, mock_get_model
+    ):
+        failing_model = Mock(side_effect=RuntimeError("down"))
+        passing_model = Mock(return_value="ok")
+
+        def get_model(key):
+            return failing_model if key == 'bad_model' else passing_model
+
+        mock_get_model.side_effect = get_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            for _ in range(3):
+                with pytest.raises(ProcessingError):
+                    task_processor.execute_task('bad_model', 'input', 'refine')
+
+            # good_model has its own circuit breaker — should still work
+            result = task_processor.execute_task('good_model', 'input', 'refine')
+
+        assert result == "ok"
+        assert 'bad_model' in task_processor.circuit_breakers
+        assert 'good_model' in task_processor.circuit_breakers
+
     @patch('utils.translation_handler.TranslationHandler')
     def test_execute_task_auto_translate(self, mock_handler_cls, task_processor, mock_get_model):
         mock_model = Mock(return_value="Translated text")
