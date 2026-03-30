@@ -122,13 +122,18 @@ class ApplicationManager(LoggerMixin):
             self.last_result_is_error = False
             return result
 
-        except (ProcessingError, Exception) as e:
+        except ProcessingError as e:
             error_msg = handle_error(e, "Text processing")
             self.last_result = None
             self.last_result_task_id = None
             self.last_result_is_error = True
-            prefix = "" if isinstance(e, ProcessingError) else "Unexpected "
-            return f"{prefix}Error: {error_msg}"
+            return f"Error: {error_msg}"
+        except Exception as e:
+            error_msg = handle_error(e, "Text processing")
+            self.last_result = None
+            self.last_result_task_id = None
+            self.last_result_is_error = True
+            return f"Unexpected error: {error_msg}"
 
     def should_refine_further(self) -> bool:
         return (self.selected_task is not None and
