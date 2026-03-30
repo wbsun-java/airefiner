@@ -84,25 +84,32 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
 
     info("\n--- Initializing Models (from models/model_loader.py) ---")
 
-    config = get_config()
-    api_keys = config.api_config.get_api_keys()
-
     for provider_name, model_list in get_model_definitions().items():
-        api_key = api_keys.get(provider_name)
+        if not model_list:
+            continue
+
+        # api_key was already stored on the provider during get_model_definitions()
+        api_key = model_list[0]["provider"].api_key
 
         if not api_key:
-            warning(f"\n⚪ {provider_name.capitalize()} API Key not found, skipping {provider_name} models.")
+            warning(
+                f"\n⚪ {provider_name.capitalize()} API Key not found, "
+                f"skipping {provider_name} models."
+            )
             for md in model_list:
-                initialization_errors[md["key"]] = f"{provider_name.capitalize()} API Key not found."
+                initialization_errors[md["key"]] = (
+                    f"{provider_name.capitalize()} API Key not found."
+                )
             continue
 
         info(f"\n-- Initializing {provider_name.capitalize()} models --")
         for md in model_list:
             model_key = md["key"]
             provider = md["provider"]
-
             try:
-                initialized_models[model_key] = provider.build_callable(md["model_name"], api_key)
+                initialized_models[model_key] = provider.build_callable(
+                    md["model_name"], api_key
+                )
                 info(f"✅ Initialized {model_key}")
             except Exception as e:
                 err = f"Failed to initialize {model_key}: {e}"
