@@ -34,6 +34,10 @@ def get_model_definitions() -> Dict[str, list]:
     """
     Fetch model definitions from all providers with 1-hour caching.
     Falls back to predefined models when API calls fail.
+
+    The cache is unused during normal app startup (initialize_models calls
+    this once). It benefits scripts/tools that call this function repeatedly
+    in a single process (e.g. scripts/test_providers.py).
     """
     global _model_cache, _cache_timestamp
 
