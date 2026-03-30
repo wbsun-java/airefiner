@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
 from models.model_filter import is_text_model, deduplicate_models
-from utils.logger import info, error
+from utils.logger import info
 
 try:
     import anthropic as anthropic_sdk
@@ -34,31 +34,24 @@ class AnthropicModelProvider(BaseModelProvider):
 
         return call
 
-    def fetch_models(self) -> List[Dict[str, Any]]:
-        try:
-            if anthropic_sdk is None:
-                raise ImportError("anthropic package not available")
+    def _do_fetch_models(self) -> List[Dict[str, Any]]:
+        if anthropic_sdk is None:
+            raise ImportError("anthropic package not available")
 
-            client = anthropic_sdk.Anthropic(api_key=self.api_key)
-            models_page = client.models.list()
+        client = anthropic_sdk.Anthropic(api_key=self.api_key)
+        models_page = client.models.list()
 
-            model_names = {}
-            for model in models_page.data:
-                model_id = model.id
-                display_name = getattr(model, 'display_name', model_id) or model_id
-                if model_id and is_text_model(model_id, 'anthropic') and "claude" in model_id.lower():
-                    model_names[model_id] = display_name
+        model_names = {}
+        for model in models_page.data:
+            model_id = model.id
+            display_name = getattr(model, 'display_name', model_id) or model_id
+            if model_id and is_text_model(model_id, 'anthropic') and "claude" in model_id.lower():
+                model_names[model_id] = display_name
 
-            deduped = deduplicate_models(list(model_names.keys()))
-            anthropic_models = [self.create_model_definition(m, model_names[m]) for m in deduped]
-
-            info(f"Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
-            return anthropic_models
-
-        except Exception as e:
-            error(f"Failed to fetch Anthropic models: {e}")
-            info("Falling back to predefined Claude models")
-            return self.get_fallback_models()
+        deduped = deduplicate_models(list(model_names.keys()))
+        anthropic_models = [self.create_model_definition(m, model_names[m]) for m in deduped]
+        info(f"Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
+        return anthropic_models
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
         fallback_models = [

@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
 from models.model_filter import is_text_model, deduplicate_models
-from utils.logger import info, warning, error
+from utils.logger import info, warning
 
 try:
     from google import genai
@@ -34,50 +34,40 @@ class GoogleModelProvider(BaseModelProvider):
 
         return call
 
-    def fetch_models(self) -> List[Dict[str, Any]]:
-        try:
-            if genai is None:
-                raise ImportError("google-genai package not available")
+    def _do_fetch_models(self) -> List[Dict[str, Any]]:
+        if genai is None:
+            raise ImportError("google-genai package not available")
 
-            client = genai.Client(api_key=self.api_key)
+        client = genai.Client(api_key=self.api_key)
 
-            max_retries = 3
-            models = []
-            for attempt in range(max_retries):
-                try:
-                    models = list(client.models.list())
-                    break
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        raise
-                    warning(f"Attempt {attempt + 1} failed to fetch Google models: {e}. Retrying...")
-                    time.sleep(2)
+        max_retries = 3
+        models = []
+        for attempt in range(max_retries):
+            try:
+                models = list(client.models.list())
+                break
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                warning(
+                    f"Attempt {attempt + 1} failed to fetch Google models: {e}. Retrying..."
+                )
+                time.sleep(2)
 
-            model_ids = []
-            for model in models:
-                model_name = model.name.split('/')[-1] if '/' in model.name else model.name
-                supported_actions = getattr(model, 'supported_actions', None)
+        model_ids = []
+        for model in models:
+            model_name = model.name.split('/')[-1] if '/' in model.name else model.name
+            supported_actions = getattr(model, 'supported_actions', None)
+            if (is_text_model(model_name, 'google') and "gemini" in model_name.lower() and
+                    (supported_actions is None or 'generateContent' in supported_actions)):
+                model_ids.append(model_name)
 
-                if (is_text_model(model_name, 'google') and "gemini" in model_name.lower() and
-                        (supported_actions is None or 'generateContent' in supported_actions)):
-                    model_ids.append(model_name)
-
-            google_models = [self.create_model_definition(m) for m in deduplicate_models(model_ids)]
-            info(f"Fetched {len(google_models)} Google Gemini models dynamically")
-            return google_models
-
-        except Exception as e:
-            error(f"Failed to fetch Google models: {e}")
-            info("Falling back to predefined Gemini models")
-            return self.get_fallback_models()
+        google_models = [self.create_model_definition(m) for m in deduplicate_models(model_ids)]
+        info(f"Fetched {len(google_models)} Google Gemini models dynamically")
+        return google_models
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        model_ids = [
+        return self._build_fallback_list([
             "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp",
             "gemini-2.5-flash", "gemini-2.5-pro",
-        ]
-        return [
-            self.create_model_definition(model_id)
-            for model_id in model_ids
-            if is_text_model(model_id, 'google')
-        ]
+        ])

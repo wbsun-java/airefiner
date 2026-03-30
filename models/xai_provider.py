@@ -9,7 +9,7 @@ from xai_sdk.chat import user as xai_user
 
 from models.base_model_provider import BaseModelProvider
 from models.model_filter import is_text_model, deduplicate_models
-from utils.logger import info, error
+from utils.logger import info
 
 
 class XAIModelProvider(BaseModelProvider):
@@ -28,25 +28,16 @@ class XAIModelProvider(BaseModelProvider):
 
         return call
 
-    def fetch_models(self) -> List[Dict[str, Any]]:
-        try:
-            client = Client(api_key=self.api_key)
-            language_models = client.models.list_language_models()
-            model_ids = [
-                m.name for m in language_models
-                if is_text_model(m.name, 'xai')
-            ]
-            models = [
-                self.create_model_definition(m)
-                for m in deduplicate_models(model_ids)
-            ]
-            info(f"Fetched {len(models)} xAI models dynamically")
-            return models
-        except Exception as e:
-            error(f"Failed to fetch xAI models: {e}")
-            return self.get_fallback_models()
+    def _do_fetch_models(self) -> List[Dict[str, Any]]:
+        client = Client(api_key=self.api_key)
+        language_models = client.models.list_language_models()
+        model_ids = [
+            m.name for m in language_models
+            if is_text_model(m.name, 'xai')
+        ]
+        models = [self.create_model_definition(m) for m in deduplicate_models(model_ids)]
+        info(f"Fetched {len(models)} xAI models dynamically")
+        return models
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        model_ids = ["grok-4-0709", "grok-3", "grok-3-mini"]
-        return [self.create_model_definition(m) for m in model_ids
-                if is_text_model(m, 'xai')]
+        return self._build_fallback_list(["grok-4-0709", "grok-3", "grok-3-mini"])
