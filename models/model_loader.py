@@ -10,12 +10,9 @@ from config.config_manager import get_config
 from config.constants import CACHE_DURATION_SECONDS
 from utils.logger import info, warning, error
 
-# Global cache for model definitions
 _model_cache = {}
 _cache_timestamp = 0
 
-# Provider registry: maps provider name to its provider class import path.
-# Each entry is (module_path, class_name).
 _PROVIDER_REGISTRY = {
     "openai": ("models.openai_provider", "OpenAIModelProvider"),
     "google": ("models.google_provider", "GoogleModelProvider"),
@@ -444,7 +441,14 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
 =======
     Fetch model definitions from all providers with 1-hour caching.
     Falls back to predefined models when API calls fail.
+<<<<<<< HEAD
 >>>>>>> fb19d7bb9aeed507a8ce05166444c6711b3c931e
+=======
+
+    The cache is unused during normal app startup (initialize_models calls
+    this once). It benefits scripts/tools that call this function repeatedly
+    in a single process (e.g. scripts/test_providers.py).
+>>>>>>> 651ea15138a00ad88591d8db07a4193cdeeb3961
     """
     global _model_cache, _cache_timestamp
 
@@ -487,7 +491,7 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
 
 def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
-    Initialize all AI models from model definitions using appropriate LangChain classes.
+    Initialize all AI models from model definitions.
     Returns (initialized_models, initialization_errors).
     """
     initialized_models = {}
@@ -495,43 +499,32 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
 
     info("\n--- Initializing Models (from models/model_loader.py) ---")
 
-    config = get_config()
-    api_keys = config.api_config.get_api_keys()
-    api_key_arg_names = config.api_config.api_key_arg_names
-
-    for provider, model_list in get_model_definitions().items():
-        api_key = api_keys.get(provider)
-        api_key_arg_name = api_key_arg_names.get(provider)
-
-        if not api_key_arg_name:
-            warning(f"\n⚠️ Skipping provider '{provider}': Not configured in api_key_arg_names.")
-            for md in model_list:
-                initialization_errors[md["key"]] = f"Provider '{provider}' not configured."
+    for provider_name, model_list in get_model_definitions().items():
+        if not model_list:
             continue
+
+        # api_key was already stored on the provider during get_model_definitions()
+        api_key = model_list[0]["provider"].api_key
 
         if not api_key:
-            warning(f"\n⚪ {provider.capitalize()} API Key not found, skipping {provider} models.")
+            warning(
+                f"\n⚪ {provider_name.capitalize()} API Key not found, "
+                f"skipping {provider_name} models."
+            )
             for md in model_list:
-                initialization_errors[md["key"]] = f"{provider.capitalize()} API Key not found."
+                initialization_errors[md["key"]] = (
+                    f"{provider_name.capitalize()} API Key not found."
+                )
             continue
 
-        info(f"\n-- Initializing {provider.capitalize()} models --")
+        info(f"\n-- Initializing {provider_name.capitalize()} models --")
         for md in model_list:
             model_key = md["key"]
-            model_class = md["class"]
-            model_id_key = md.get("model_id_key")
-
-            if model_class is None or not model_id_key:
-                err = f"Invalid model definition for {model_key}."
-                initialization_errors[model_key] = err
-                warning(f"⚪ Skipping {model_key}: {err}")
-                continue
-
+            provider = md["provider"]
             try:
-                args = md["args"].copy()
-                args[api_key_arg_name] = api_key
-                args[model_id_key] = md["model_name"]
-                initialized_models[model_key] = model_class(**args)
+                initialized_models[model_key] = provider.build_callable(
+                    md["model_name"], api_key
+                )
                 info(f"✅ Initialized {model_key}")
             except Exception as e:
                 err = f"Failed to initialize {model_key}: {e}"

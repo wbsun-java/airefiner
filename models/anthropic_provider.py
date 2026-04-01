@@ -2,12 +2,11 @@
 Anthropic model provider - fetches and manages Anthropic Claude models.
 """
 
-from typing import List, Dict, Any
-
-from langchain_anthropic import ChatAnthropic
+from typing import List, Dict, Any, Callable
 
 from models.base_model_provider import BaseModelProvider
-from utils.logger import info, error
+from models.model_filter import is_text_model, deduplicate_models
+from utils.logger import info
 
 try:
     import anthropic as anthropic_sdk
@@ -16,57 +15,45 @@ except ImportError:
 
 
 class AnthropicModelProvider(BaseModelProvider):
-    """
-    Anthropic model provider using the official Anthropic SDK.
-    """
 
     def __init__(self, api_key: str, provider_name: str = "anthropic"):
         super().__init__(api_key, provider_name)
 
-    def get_model_class(self):
-        return ChatAnthropic
+    def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
+        client = anthropic_sdk.Anthropic(api_key=api_key)
+        temperature = self.default_temperature
 
-    def get_model_id_key(self) -> str:
-        return "model"
+        def call(prompt: str) -> str:
+            message = client.messages.create(
+                model=model_id,
+                max_tokens=1024,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return message.content[0].text
 
-    def fetch_models(self) -> List[Dict[str, Any]]:
-        """
-        Dynamically fetch available Anthropic Claude models from the API.
-        """
-        from models.model_filter import is_text_model, deduplicate_models
+        return call
 
-        try:
-            if anthropic_sdk is None:
-                raise ImportError("anthropic package not available")
+    def _do_fetch_models(self) -> List[Dict[str, Any]]:
+        if anthropic_sdk is None:
+            raise ImportError("anthropic package not available")
 
-            client = anthropic_sdk.Anthropic(api_key=self.api_key)
-            models_page = client.models.list()
+        client = anthropic_sdk.Anthropic(api_key=self.api_key)
+        models_page = client.models.list()
 
-            # Collect model_id -> display_name mapping, then deduplicate IDs
-            model_names = {}
-            for model in models_page.data:
-                model_id = model.id
-                display_name = getattr(model, 'display_name', model_id) or model_id
-                if model_id and is_text_model(model_id, 'anthropic') and "claude" in model_id.lower():
-                    model_names[model_id] = display_name
+        model_names = {}
+        for model in models_page.data:
+            model_id = model.id
+            display_name = getattr(model, 'display_name', model_id) or model_id
+            if model_id and is_text_model(model_id, 'anthropic') and "claude" in model_id.lower():
+                model_names[model_id] = display_name
 
-            deduped = deduplicate_models(list(model_names.keys()))
-            anthropic_models = [self.create_model_definition(m, model_names[m]) for m in deduped]
-
-            info(f"Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
-            return anthropic_models
-
-        except Exception as e:
-            error(f"Failed to fetch Anthropic models: {e}")
-            info("Falling back to predefined Claude models")
-            return self.get_fallback_models()
+        deduped = deduplicate_models(list(model_names.keys()))
+        anthropic_models = [self.create_model_definition(m, model_names[m]) for m in deduped]
+        info(f"Fetched {len(anthropic_models)} Anthropic Claude models dynamically")
+        return anthropic_models
 
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        """
-        Fallback Anthropic models if dynamic fetching fails.
-        """
-        from models.model_filter import is_text_model
-
         fallback_models = [
             ("claude-3-5-sonnet-20241022", "Claude Sonnet 3.5"),
             ("claude-3-7-sonnet-20250219", "Claude Sonnet 3.7"),

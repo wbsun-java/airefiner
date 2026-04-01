@@ -39,73 +39,125 @@ class TestTaskProcessor:
         assert "Prompt for task 'unknown_task' not found" in str(exc_info.value)
         assert exc_info.value.task_id == 'unknown_task'
 
-    @patch('langchain_core.prompts.ChatPromptTemplate')
-    @patch('langchain_core.output_parsers.StrOutputParser')
-    @patch('prompts.refine_prompts')
-    def test_execute_task_success(self, mock_prompts, mock_parser_cls, mock_template_cls,
-                                  task_processor, mock_get_model):
-        mock_model = Mock()
+    def test_execute_task_success(self, task_processor, mock_get_model):
+        mock_model = Mock(return_value="Processed text")
         mock_get_model.return_value = mock_model
-        mock_prompts.REFINE_TEXT_PROMPT = "Test prompt: {user_text}"
 
-        mock_prompt_template = Mock()
-        mock_template_cls.from_template.return_value = mock_prompt_template
-        mock_chain = Mock()
-        mock_prompt_template.__or__ = Mock(return_value=mock_chain)
-        mock_chain.__or__ = Mock(return_value=mock_chain)
-        mock_chain.invoke.return_value = "Processed text"
-
-        result = task_processor.execute_task('test_model', 'input text', 'refine')
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Test prompt: {user_text}"
+            result = task_processor.execute_task('test_model', 'input text', 'refine')
 
         assert result == "Processed text"
-        mock_template_cls.from_template.assert_called_once_with("Test prompt: {user_text}")
-        mock_chain.invoke.assert_called_once_with({"user_text": "input text"})
+        mock_model.assert_called_once_with("Test prompt: input text")
 
-    @patch('langchain_core.prompts.ChatPromptTemplate')
-    @patch('langchain_core.output_parsers.StrOutputParser')
-    @patch('prompts.refine_prompts')
-    def test_execute_task_chain_exception(self, mock_prompts, mock_parser_cls, mock_template_cls,
-                                          task_processor, mock_get_model):
-        mock_model = Mock()
+    def test_execute_task_chain_exception(self, task_processor, mock_get_model):
+        mock_model = Mock(side_effect=RuntimeError("API call failed"))
         mock_get_model.return_value = mock_model
-        mock_prompts.REFINE_TEXT_PROMPT = "Test prompt: {user_text}"
 
-        mock_prompt_template = Mock()
-        mock_template_cls.from_template.return_value = mock_prompt_template
-        mock_chain = Mock()
-        mock_prompt_template.__or__ = Mock(return_value=mock_chain)
-        mock_chain.__or__ = Mock(return_value=mock_chain)
-        mock_chain.invoke.side_effect = RuntimeError("Chain failed")
-
-        with pytest.raises(ProcessingError) as exc_info:
-            task_processor.execute_task('test_model', 'input text', 'refine')
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Test prompt: {user_text}"
+            with pytest.raises(ProcessingError) as exc_info:
+                task_processor.execute_task('test_model', 'input text', 'refine')
 
         assert exc_info.value.task_id == 'refine'
         assert isinstance(exc_info.value.original_error, RuntimeError)
 
+    def test_circuit_breaker_opens_after_threshold_failures(
+        self, task_processor, mock_get_model
+    ):
+        # Default threshold is 3 failures
+        mock_model = Mock(side_effect=RuntimeError("API down"))
+        mock_get_model.return_value = mock_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            for _ in range(3):
+                with pytest.raises(ProcessingError):
+                    task_processor.execute_task('test_model', 'input', 'refine')
+
+        cb = task_processor.circuit_breakers['test_model']
+        from utils.error_handler import CircuitBreaker
+        assert cb.state == CircuitBreaker.STATE_OPEN
+
+    def test_open_circuit_raises_without_calling_model(
+        self, task_processor, mock_get_model
+    ):
+        from utils.error_handler import CircuitBreaker, APIError
+        mock_model = Mock(side_effect=RuntimeError("API down"))
+        mock_get_model.return_value = mock_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            for _ in range(3):
+                with pytest.raises(ProcessingError):
+                    task_processor.execute_task('test_model', 'input', 'refine')
+
+        # 4th call — circuit is open, model should NOT be called
+        mock_model.reset_mock()
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            with pytest.raises(ProcessingError) as exc_info:
+                task_processor.execute_task('test_model', 'input', 'refine')
+
+        mock_model.assert_not_called()
+        assert isinstance(exc_info.value.original_error, APIError)
+
+    def test_each_model_key_has_independent_circuit_breaker(
+        self, task_processor, mock_get_model
+    ):
+        failing_model = Mock(side_effect=RuntimeError("down"))
+        passing_model = Mock(return_value="ok")
+
+        def get_model(key):
+            return failing_model if key == 'bad_model' else passing_model
+
+        mock_get_model.side_effect = get_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Prompt: {user_text}"
+            for _ in range(3):
+                with pytest.raises(ProcessingError):
+                    task_processor.execute_task('bad_model', 'input', 'refine')
+
+            # good_model has its own circuit breaker — should still work
+            result = task_processor.execute_task('good_model', 'input', 'refine')
+
+        assert result == "ok"
+        assert 'bad_model' in task_processor.circuit_breakers
+        assert 'good_model' in task_processor.circuit_breakers
+
+    def test_prompt_format_passes_through_curly_braces_in_input(
+        self, task_processor, mock_get_model
+    ):
+        # User input may contain JSON or template-like strings with braces.
+        # str.format() should substitute {user_text} in the template and leave
+        # braces inside the substituted value untouched.
+        mock_model = Mock(return_value="done")
+        mock_get_model.return_value = mock_model
+
+        with patch('prompts.refine_prompts') as mock_prompts:
+            mock_prompts.REFINE_TEXT_PROMPT = "Refine: {user_text}"
+            result = task_processor.execute_task(
+                'test_model', '{"key": "value"}', 'refine'
+            )
+
+        assert result == "done"
+        mock_model.assert_called_once_with('Refine: {"key": "value"}')
+
     @patch('utils.translation_handler.TranslationHandler')
-    @patch('langchain_core.prompts.ChatPromptTemplate')
-    @patch('langchain_core.output_parsers.StrOutputParser')
-    def test_execute_task_auto_translate(self, mock_parser_cls, mock_template_cls,
-                                         mock_handler_cls, task_processor, mock_get_model):
-        mock_model = Mock()
+    def test_execute_task_auto_translate(self, mock_handler_cls, task_processor, mock_get_model):
+        mock_model = Mock(return_value="Translated text")
         mock_get_model.return_value = mock_model
 
         mock_handler = Mock()
         mock_handler_cls.return_value = mock_handler
         mock_handler.get_translation_prompt.return_value = "Translation prompt: {user_text}"
 
-        mock_prompt_template = Mock()
-        mock_template_cls.from_template.return_value = mock_prompt_template
-        mock_chain = Mock()
-        mock_prompt_template.__or__ = Mock(return_value=mock_chain)
-        mock_chain.__or__ = Mock(return_value=mock_chain)
-        mock_chain.invoke.return_value = "Translated text"
-
         result = task_processor.execute_task('test_model', 'input text', 'auto_translate')
 
         assert result == "Translated text"
         mock_handler.get_translation_prompt.assert_called_once_with('input text')
+        mock_model.assert_called_once_with("Translation prompt: input text")
 
 
 class TestApplicationManager:

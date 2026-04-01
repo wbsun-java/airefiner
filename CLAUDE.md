@@ -52,7 +52,7 @@ main.py (AIRefinerApp)
 **xAI is a custom LangChain wrapper**: Unlike other providers which use official LangChain integrations, `models/xai_provider.py` contains a hand-rolled `ChatXAI(BaseChatModel)` that wraps the gRPC-based `xai_sdk`. The client is lazily cached via Pydantic `PrivateAttr`.
 
 **Model filtering** (`models/model_filter.py`): `is_text_model()` applies keyword blocklist from `ModelFiltering.NON_TEXT_KEYWORDS` and per-provider exclusions from `ModelFiltering.PROVIDER_EXCLUSIONS`. `deduplicate_models()` drops dated snapshot IDs (e.g. `gpt-4o-2024-11-20`) when a base ID (e.g. `gpt-4o`) exists.
-
+cl
 **Circuit breaker** (`utils/error_handler.py`): Each model key gets its own `CircuitBreaker` instance in `TaskProcessor`. After 3 failures it opens for 60 seconds, raising `APIError` instead of calling the model.
 
 ## Configuration

@@ -3,89 +3,59 @@ Base classes for model providers to eliminate code duplication.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
 from config.constants import DEFAULT_TEMPERATURE
-from utils.logger import LoggerMixin
+from models.model_filter import is_text_model
+from utils.logger import info, error, LoggerMixin
 
 
 class BaseModelProvider(ABC, LoggerMixin):
     """
     Base class for all model providers.
-    Provides common functionality for fetching models and handling fallbacks.
     """
 
     def __init__(self, api_key: str, provider_name: str):
-        """
-        Initialize the base model provider.
-        
-        Args:
-            api_key: API key for the provider
-            provider_name: Name of the provider (e.g., 'openai', 'anthropic')
-        """
         self.api_key = api_key
         self.provider_name = provider_name
-        self.default_args = {"temperature": DEFAULT_TEMPERATURE}
+        self.default_temperature = DEFAULT_TEMPERATURE
+
+    def fetch_models(self) -> List[Dict[str, Any]]:
+        """Fetch models, falling back to get_fallback_models() on any error."""
+        try:
+            return self._do_fetch_models()
+        except Exception as e:
+            error(f"Failed to fetch {self.provider_name} models: {e}")
+            info(f"Falling back to predefined {self.provider_name} models")
+            return self.get_fallback_models()
 
     @abstractmethod
-    def fetch_models(self) -> List[Dict[str, Any]]:
-        """
-        Fetch available models from the provider's API.
-        
-        Returns:
-            List of model dictionaries with standardized format
-        """
+    def _do_fetch_models(self) -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod
     def get_fallback_models(self) -> List[Dict[str, Any]]:
-        """
-        Get fallback models when API fetching fails.
-        
-        Returns:
-            List of predefined model dictionaries
-        """
         pass
 
     @abstractmethod
-    def get_model_class(self):
-        """
-        Get the LangChain model class for this provider.
-        
-        Returns:
-            The LangChain chat model class
-        """
+    def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
         pass
 
-    @abstractmethod
-    def get_model_id_key(self) -> str:
-        """
-        Get the parameter name used for model ID in the constructor.
-        
-        Returns:
-            Parameter name (e.g., 'model_name', 'model')
-        """
-        pass
+    def _build_fallback_list(self, model_ids: List[str]) -> List[Dict[str, Any]]:
+        """Build model definitions from a list of IDs, filtering non-text models."""
+        return [
+            self.create_model_definition(m)
+            for m in model_ids
+            if is_text_model(m, self.provider_name)
+        ]
 
-    def create_model_definition(self, model_id: str, display_name: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Create a standardized model definition dictionary.
-        
-        Args:
-            model_id: The model identifier used by the API
-            display_name: Optional display name (defaults to model_id)
-            
-        Returns:
-            Standardized model definition dictionary
-        """
+    def create_model_definition(
+        self, model_id: str, display_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         if display_name is None:
             display_name = model_id
-
         return {
             "key": f"{self.provider_name}/{display_name}",
             "model_name": model_id,
-            "class": self.get_model_class(),
-            "args": self.default_args.copy(),
-            "model_id_key": self.get_model_id_key()
+            "provider": self,
         }
-

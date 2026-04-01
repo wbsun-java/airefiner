@@ -130,3 +130,6 @@ logs/
 
 # VSCode
 .vscode/
+
+# Git worktrees
+.worktrees/
