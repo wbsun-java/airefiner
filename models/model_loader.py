@@ -1,80 +1,41 @@
-# Import necessary standard LangChain classes
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
+"""
+Model loader - orchestrates dynamic fetching and initialization of AI models from multiple providers.
+"""
 
-# --- Import Qwen Integration ---
-try:
-    from langchain_openai import ChatOpenAI as ChatQwen
-except ImportError:
-    ChatQwen = None
-    print("WARNING: Could not import ChatOpenAI for Qwen integration")
-
-
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    print("INFO: .env file loaded successfully.")
-except ImportError:
-    print("WARNING: python-dotenv not installed, .env file will not be loaded. Run: pip install python-dotenv")
-# --- END OF ADDED SECTION ---
-
-# --- Import Official xAI Integration ---
-try:
-    from langchain_xai import ChatXAI
-except ImportError:
-    ChatXAI = None
-    print(
-        "WARNING: Could not import ChatXAI from langchain-xai. Install with: pip install langchain-xai")
-
-# Import configuration details (API keys and arg names)
-from config.config_manager import get_config
-from config.settings import ENABLE_STRICT_MODEL_FILTERING, CUSTOM_EXCLUDE_KEYWORDS
-
-# Import for dynamic model fetching
-from openai import OpenAI
 import time
-from typing import List, Dict, Any, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, Any, Tuple
 
-# Import for Google model fetching
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
-    print("WARNING: google-generativeai not available for dynamic Google model fetching")
-
-# Import for Anthropic model fetching
-try:
-    import anthropic
-except ImportError:
-    anthropic = None
-    print("WARNING: anthropic not available for dynamic Anthropic model fetching")
-
-# Import for Groq model fetching
-try:
-    from groq import Groq
-except ImportError:
-    Groq = None
-    print("WARNING: groq not available for dynamic Groq model fetching")
-
-
-
-import requests
+from config.config_manager import get_config
+from config.constants import CACHE_DURATION_SECONDS
+from utils.logger import info, warning, error
 
 # Global cache for model definitions
 _model_cache = {}
 _cache_timestamp = 0
 
-# Import constants
-from config.constants import CacheConfig, ModelFiltering
-from utils.logger import info, warning, error
+# Provider registry: maps provider name to its provider class import path.
+# Each entry is (module_path, class_name).
+_PROVIDER_REGISTRY = {
+    "openai": ("models.openai_provider", "OpenAIModelProvider"),
+    "google": ("models.google_provider", "GoogleModelProvider"),
+    "anthropic": ("models.anthropic_provider", "AnthropicModelProvider"),
+    "groq": ("models.groq_provider", "GroqModelProvider"),
+    "xai": ("models.xai_provider", "XAIModelProvider"),
+}
 
 
-# --- Model Filtering Helper ---
-def is_text_model(model_id: str, provider: str = "") -> bool:
+def _get_provider_class(provider_name: str):
+    """Lazily import and return a provider class by name."""
+    import importlib
+    module_path, class_name = _PROVIDER_REGISTRY[provider_name]
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+
+
+def get_model_definitions() -> Dict[str, list]:
     """
+<<<<<<< HEAD
     Comprehensive filtering to identify text-based models suitable for content refinement.
     
     This function uses heuristics and keyword matching to determine if a model is appropriate
@@ -480,100 +441,54 @@ def get_model_definitions() -> Dict[str, List[Dict[str, Any]]]:
         dict_keys(['openai', 'groq', 'google', 'anthropic', 'xai', 'qwen'])
         >>> len(definitions['openai'])
         4
+=======
+    Fetch model definitions from all providers with 1-hour caching.
+    Falls back to predefined models when API calls fail.
+>>>>>>> fb19d7bb9aeed507a8ce05166444c6711b3c931e
     """
     global _model_cache, _cache_timestamp
 
     current_time = time.time()
-
-    if _model_cache and (current_time - _cache_timestamp) < CacheConfig.DURATION_SECONDS:
+    if _model_cache and (current_time - _cache_timestamp) < CACHE_DURATION_SECONDS:
         info("📋 Using cached model definitions")
         return _model_cache
 
     config = get_config()
-    API_KEYS = config.api_config.get_api_keys()
+    api_keys = config.api_config.get_api_keys()
 
-    openai_models = []
-    if API_KEYS.get("openai"):
-        openai_models = fetch_openai_models(API_KEYS["openai"])
-    else:
-        warning("⚪ OpenAI API key not found, using fallback models")
-        openai_models = get_fallback_openai_models()
+    def _load_provider(provider_name: str) -> tuple[str, list]:
+        api_key = api_keys.get(provider_name)
+        try:
+            provider_cls = _get_provider_class(provider_name)
+            provider = provider_cls(api_key=api_key or "")
+            if api_key:
+                return provider_name, provider.fetch_models()
+            else:
+                warning(f"⚪ {provider_name.capitalize()} API key not found, using fallback models")
+                return provider_name, provider.get_fallback_models()
+        except Exception as e:
+            error(f"❌ Failed to load {provider_name} provider: {e}")
+            return provider_name, []
 
-    xai_models = []
-    if API_KEYS.get("xai"):
-        xai_models = fetch_xai_models(API_KEYS["xai"])
-    else:
-        warning("⚪ xAI API key not found, using fallback Grok models")
-        xai_models = get_fallback_xai_models()
-
-    google_models = []
-    if API_KEYS.get("google"):
-        google_models = fetch_google_models(API_KEYS["google"])
-    else:
-        warning("⚪ Google API key not found, using fallback Gemini models")
-        google_models = get_fallback_google_models()
-
-    anthropic_models = []
-    if API_KEYS.get("anthropic"):
-        anthropic_models = fetch_anthropic_models(API_KEYS["anthropic"])
-    else:
-        warning("⚪ Anthropic API key not found, using fallback Claude models")
-        anthropic_models = get_fallback_anthropic_models()
-
-    groq_models = []
-    if API_KEYS.get("groq"):
-        groq_models = fetch_groq_models(API_KEYS["groq"])
-    else:
-        warning("⚪ Groq API key not found, using fallback models")
-        groq_models = get_fallback_groq_models()
-
-    qwen_models = []
-    if API_KEYS.get("qwen"):
-        qwen_models = fetch_qwen_models(API_KEYS["qwen"])
-    else:
-        warning("⚪ Qwen API key not found, using fallback models")
-        qwen_models = []
-
-    model_definitions = {
-        "openai": openai_models,
-        "groq": groq_models,
-        "google": google_models,
-        "anthropic": anthropic_models,
-        "xai": xai_models,
-        "qwen": qwen_models,
-    }
+    model_definitions = {}
+    with ThreadPoolExecutor(max_workers=len(_PROVIDER_REGISTRY)) as executor:
+        futures = {executor.submit(_load_provider, name): name for name in _PROVIDER_REGISTRY}
+        for future in as_completed(futures):
+            provider_name, models = future.result()
+            model_definitions[provider_name] = models
 
     _model_cache = model_definitions
     _cache_timestamp = current_time
-    info(f"💾 Model definitions cached for {CacheConfig.CACHE_DURATION_MINUTES} minutes")
-    info(f"📊 Total models after filtering: {sum(len(models) for models in model_definitions.values())}")
+    info(f"💾 Model definitions cached for {CACHE_DURATION_SECONDS // 60} minutes")
+    info(f"📊 Total models after filtering: {sum(len(m) for m in model_definitions.values())}")
 
     return model_definitions
 
-# --- initialize_models Function (MODIFIED) ---
+
 def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
-    Initialize all AI models defined in MODEL_DEFINITIONS based on available API keys.
-    
-    This function dynamically fetches model definitions from various AI providers,
-    initializes model instances using the appropriate LangChain classes, and handles
-    errors gracefully by providing fallback models when API calls fail.
-    
-    Returns:
-        Tuple containing:
-            - initialized_models (Dict[str, Any]): Dictionary mapping model keys to 
-              initialized LangChain model instances
-            - initialization_errors (Dict[str, str]): Dictionary mapping model keys
-              to error messages for models that failed to initialize
-              
-    Example:
-        >>> models, errors = initialize_models()
-        >>> len(models)
-        15
-        >>> 'openai/gpt-4o' in models
-        True
-        >>> if errors:
-        ...     print(f"Failed to initialize: {list(errors.keys())}")
+    Initialize all AI models from model definitions using appropriate LangChain classes.
+    Returns (initialized_models, initialization_errors).
     """
     initialized_models = {}
     initialization_errors = {}
@@ -581,84 +496,50 @@ def initialize_models() -> Tuple[Dict[str, Any], Dict[str, str]]:
     info("\n--- Initializing Models (from models/model_loader.py) ---")
 
     config = get_config()
-    API_KEYS = config.api_config.get_api_keys()
-    API_KEY_ARG_NAMES = config.api_config.api_key_arg_names
+    api_keys = config.api_config.get_api_keys()
+    api_key_arg_names = config.api_config.api_key_arg_names
 
-    MODEL_DEFINITIONS = get_model_definitions()
-
-    for provider, model_list in MODEL_DEFINITIONS.items():
-        api_key = API_KEYS.get(provider)
-        api_key_arg_name = API_KEY_ARG_NAMES.get(provider)
+    for provider, model_list in get_model_definitions().items():
+        api_key = api_keys.get(provider)
+        api_key_arg_name = api_key_arg_names.get(provider)
 
         if not api_key_arg_name:
-            warning(f"\n⚠️ Skipping provider '{provider}': Not configured in config_manager.py (api_key_arg_names).")
-            for model_def in model_list:
-                initialization_errors[model_def["key"]] = f"Provider '{provider}' not configured in api_key_arg_names."
+            warning(f"\n⚠️ Skipping provider '{provider}': Not configured in api_key_arg_names.")
+            for md in model_list:
+                initialization_errors[md["key"]] = f"Provider '{provider}' not configured."
             continue
-
-        if provider == "xai" and ChatXAI is None:
-            warning(f"\n⚪ Skipping xAI models: ChatXAI class not imported. Install with: pip install langchain-xai")
-            for model_def in model_list:
-                initialization_errors[model_def["key"]] = "ChatXAI class not available. Install langchain-xai package."
-            continue
-
-        if provider == "qwen" and ChatQwen is None:
-            warning(f"\n⚪ Skipping Qwen models: ChatQwen class not imported.")
-            for model_def in model_list:
-                initialization_errors[model_def["key"]] = "ChatQwen class not available."
-            continue
-
-
 
         if not api_key:
-            warning(
-                f"\n⚪ {provider.capitalize()} API Key not found in environment (via config/settings.py), skipping {provider} models.")
-            for model_def in model_list:
-                initialization_errors[model_def["key"]] = f"{provider.capitalize()} API Key not found."
+            warning(f"\n⚪ {provider.capitalize()} API Key not found, skipping {provider} models.")
+            for md in model_list:
+                initialization_errors[md["key"]] = f"{provider.capitalize()} API Key not found."
             continue
 
         info(f"\n-- Initializing {provider.capitalize()} models --")
-        for model_def in model_list:
-            model_key = model_def["key"]
-            model_identifier_value = model_def["model_name"]
-            model_class = model_def["class"]
-            constructor_id_param_name = model_def.get("model_id_key")
+        for md in model_list:
+            model_key = md["key"]
+            model_class = md["class"]
+            model_id_key = md.get("model_id_key")
 
-            if model_class is None and provider == "xai":
-                error_msg = f"Class definition missing for {model_key} (ChatXAI likely failed to import)."
-                initialization_errors[model_key] = error_msg
-                warning(f"⚪ Skipping {model_key}: {error_msg}")
+            if model_class is None or not model_id_key:
+                err = f"Invalid model definition for {model_key}."
+                initialization_errors[model_key] = err
+                warning(f"⚪ Skipping {model_key}: {err}")
                 continue
-            elif model_class is None:
-                error_msg = f"Class definition missing for {model_key}."
-                initialization_errors[model_key] = error_msg
-                warning(f"⚪ Skipping {model_key}: {error_msg}")
-                continue
-
-            if not constructor_id_param_name:
-                error_msg = f"Configuration error: 'model_id_key' missing for {model_key} in MODEL_DEFINITIONS."
-                initialization_errors[model_key] = error_msg
-                warning(f"⚪ Skipping {model_key}: {error_msg}")
-                continue
-
-            model_args_from_def = model_def["args"].copy()
-            model_args_from_def[api_key_arg_name] = api_key
 
             try:
-                constructor_kwargs = {constructor_id_param_name: model_identifier_value}
-                final_constructor_args = {**constructor_kwargs, **model_args_from_def}
-
-                initialized_models[model_key] = model_class(**final_constructor_args)
+                args = md["args"].copy()
+                args[api_key_arg_name] = api_key
+                args[model_id_key] = md["model_name"]
+                initialized_models[model_key] = model_class(**args)
                 info(f"✅ Initialized {model_key}")
-
             except Exception as e:
-                error_msg = f"Failed to initialize {model_key}: {e}"
-                initialization_errors[model_key] = error_msg
-                error(f"❌ {error_msg}")
+                err = f"Failed to initialize {model_key}: {e}"
+                initialization_errors[model_key] = err
+                error(f"❌ {err}")
 
     info("\n--- Model Initialization Complete ---")
     if initialization_errors:
-        warning("\n--- Initialization Warnings ---")
-        warning("Some models failed to initialize (check errors above). They will not be available for selection.")
+        warning("Some models failed to initialize. They will not be available for selection.")
 
     return initialized_models, initialization_errors
