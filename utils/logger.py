@@ -6,7 +6,6 @@ import copy
 import logging
 import os
 import sys
-from typing import Optional
 
 
 class ColoredFormatter(logging.Formatter):
@@ -88,7 +87,3 @@ def warning(message: str, *args, **kwargs):
 
 def error(message: str, *args, **kwargs):
     _log.error(message, *args, **kwargs)
-
-
-def exception(message: str, *args, **kwargs):
-    _log.exception(message, *args, **kwargs)

@@ -23,7 +23,7 @@ class TranslationHandler(LoggerMixin):
     """Handles automatic language detection and translation between English and Chinese."""
 
     def detect_language(self, text: str) -> tuple:
-        if not detect or not text or not text.strip():
+        if not detect or not text.strip():
             return 'unknown', 0.0
 
         try:
@@ -47,14 +47,12 @@ class TranslationHandler(LoggerMixin):
         if detected_lang in ['zh', 'zh-cn', 'zh-tw']:
             chinese_range = LanguageSupport.CHINESE_UNICODE_RANGE
             chinese_chars = sum(1 for c in text if chinese_range[0] <= ord(c) <= chinese_range[1])
-            if chinese_chars > 0:
-                pattern_bonus = min(chinese_chars / len(text), LanguageSupport.MAX_PATTERN_BONUS)
+            pattern_bonus = min(chinese_chars / len(text), LanguageSupport.MAX_PATTERN_BONUS)
         elif detected_lang == 'en':
             text_words = set(text.lower().split())
             english_words = set(LanguageSupport.COMMON_ENGLISH_WORDS)
             match_count = len(text_words.intersection(english_words))
-            if match_count > 0:
-                pattern_bonus = min(match_count / 10, LanguageSupport.MAX_PATTERN_BONUS)
+            pattern_bonus = min(match_count / 10, LanguageSupport.MAX_PATTERN_BONUS)
 
         return min(base_confidence + length_bonus + pattern_bonus, 1.0)
 

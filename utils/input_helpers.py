@@ -1,5 +1,3 @@
-# utils/input_helpers.py
-
 from config.constants import MULTILINE_TERMINATOR
 
 def get_multiline_input(prompt_message: str) -> str:

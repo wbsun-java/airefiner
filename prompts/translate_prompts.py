@@ -1,5 +1,3 @@
-# prompts/translate_prompts.py
-
 TRANSLATE_EN_TO_ZH_PROMPT = (
     "You are a helpful translation assistant. Translate the following English text to Chinese. "
     "Provide only the Chinese translation.\n\n"
