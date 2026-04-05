@@ -4,13 +4,13 @@ Main application entry point for AIRefiner.
 
 from dotenv import load_dotenv
 
-# Load environment variables from .env file before other imports
-load_dotenv()
-
 from core.app_manager import ApplicationManager
 from ui.console_interface import ConsoleInterface
 from utils.logger import LoggerMixin
 from config.config_manager import load_config, get_config
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class AIRefinerApp(LoggerMixin):
@@ -75,20 +75,29 @@ class AIRefinerApp(LoggerMixin):
     def _handle_model_selection(self):
         available_models = self.app_manager.get_available_models()
         if not available_models:
-            self.ui.display_error("No models available. Please check your configuration.")
+            self.ui.display_error(
+                "No models available. Please check your configuration."
+            )
             return "exit"
         return self.ui.select_model(available_models)
 
     def _handle_text_processing(self):
         task_name = self.app_manager.selected_task['name']
         can_use_previous = self.app_manager.can_use_previous_result()
-        previous_result = self.app_manager.get_previous_result() if can_use_previous else None
+        previous_result = (
+            self.app_manager.get_previous_result()
+            if can_use_previous else None
+        )
 
-        text_input = self.ui.get_text_input(task_name, can_use_previous, previous_result)
+        text_input = self.ui.get_text_input(
+            task_name, can_use_previous, previous_result
+        )
         if not text_input:
             return
         if not text_input.strip():
-            self.ui.display_warning("No text provided. Please enter some text to process.")
+            self.ui.display_warning(
+                "No text provided. Please enter some text to process."
+            )
             return
 
         self.ui.display_status("Processing text...", "loading")
