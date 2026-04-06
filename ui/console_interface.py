@@ -92,8 +92,7 @@ class ConsoleInterface(LoggerMixin):
 
         for model in available_models:
             if "/" in model:
-                provider = model.split("/")[0]
-                model_name = model.split("/", 1)[1]
+                provider, model_name = model.split("/", 1)
             else:
                 provider = "Unknown"
                 model_name = model

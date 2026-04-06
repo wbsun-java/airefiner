@@ -85,12 +85,6 @@ class TestApplicationConfiguration:
         config = ApplicationConfiguration(api_config=api_config)
         assert len(config.validate()) == 0
 
-    def test_validate_with_invalid_temperature(self):
-        api_config = APIConfiguration(openai_key='sk-test-key-1234567890')
-        config = ApplicationConfiguration(api_config=api_config, default_temperature=3.0)
-        errors = config.validate()
-        assert any("temperature must be between" in e for e in errors)
-
     def test_is_valid_true(self):
         api_config = APIConfiguration(openai_key='sk-test-key-1234567890')
         config = ApplicationConfiguration(api_config=api_config)

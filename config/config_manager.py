@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
-from config.constants import ModelProvider, TaskConfiguration, DEFAULT_TEMPERATURE
+from config.constants import ModelProvider, TaskConfiguration
 from utils.logger import info, warning, error as log_error
 
 
@@ -71,20 +71,13 @@ class ApplicationConfiguration:
     """Main application configuration."""
 
     api_config: APIConfiguration
-    default_temperature: float = DEFAULT_TEMPERATURE
 
     @property
     def tasks(self) -> Dict[str, Dict[str, Any]]:
         return TASKS
 
     def validate(self) -> List[str]:
-        errors = []
-        errors.extend(self.api_config.validate())
-
-        if not (0.0 <= self.default_temperature <= 2.0):
-            errors.append(f"Default temperature must be between 0.0 and 2.0, got {self.default_temperature}")
-
-        return errors
+        return self.api_config.validate()
 
     def is_valid(self) -> bool:
         return len(self.validate()) == 0
@@ -112,7 +105,6 @@ def load_config() -> ApplicationConfiguration:
 
     available_providers = config.api_config.get_available_providers()
     info(f"Available API providers: {', '.join(available_providers) if available_providers else 'None'}")
-    info(f"Default temperature: {config.default_temperature}")
 
     if not available_providers:
         warning("No API keys found - application may not function properly")

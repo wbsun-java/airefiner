@@ -1,5 +1,3 @@
-# prompts/refine_prompts.py
-
 REFINE_TEXT_PROMPT = """You are a professional communication expert. Refine the following business communication content to make it clearer, more professional, and more effective.
 
 **OUTPUT FORMAT REQUIREMENTS:**
