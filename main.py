@@ -94,11 +94,6 @@ class AIRefinerApp(LoggerMixin):
         )
         if not text_input:
             return
-        if not text_input.strip():
-            self.ui.display_warning(
-                "No text provided. Please enter some text to process."
-            )
-            return
 
         self.ui.display_status("Processing text...", "loading")
         result = self.app_manager.process_text(text_input)
