@@ -22,18 +22,3 @@ def reset_logger_state():
     yield
 
     logging.getLogger('airefiner').handlers.clear()
-
-
-def pytest_configure(config):
-    """Configure custom pytest markers."""
-    config.addinivalue_line("markers", "unit: mark test as a unit test")
-    config.addinivalue_line("markers", "integration: mark test as an integration test")
-    config.addinivalue_line("markers", "slow: mark test as slow running")
-    config.addinivalue_line("markers", "api: mark test as requiring API access")
-
-
-def pytest_collection_modifyitems(config, items):
-    """Modify test items during collection."""
-    for item in items:
-        if item.fspath.basename.startswith('test_'):
-            item.add_marker(pytest.mark.unit)

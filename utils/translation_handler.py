@@ -56,7 +56,7 @@ class TranslationHandler(LoggerMixin):
 
         return min(base_confidence + length_bonus + pattern_bonus, 1.0)
 
-    def determine_translation_direction(self, text: str) -> Dict[str, Any]:
+    def _determine_translation_direction(self, text: str) -> Dict[str, Any]:
         detected_lang, confidence = self.detect_language(text)
 
         if detected_lang in ['zh', 'zh-cn', 'zh-tw']:
@@ -85,6 +85,6 @@ class TranslationHandler(LoggerMixin):
             }
 
     def get_translation_prompt(self, text: str) -> str:
-        info = self.determine_translation_direction(text)
-        self.logger.info(f"Translation: {info['source_language']} -> {info['target_language']}, task: {info['task_id']}")
-        return info['prompt']
+        direction = self._determine_translation_direction(text)
+        self.logger.info(f"Translation: {direction['source_language']} -> {direction['target_language']}, task: {direction['task_id']}")
+        return direction['prompt']
