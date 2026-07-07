@@ -25,14 +25,12 @@ class TestAPIConfiguration:
             'OPENAI_API_KEY': 'sk-test-openai',
             'ANTHROPIC_API_KEY': 'sk-test-anthropic',
             'GOOGLE_API_KEY': 'test-google',
-            'GROQ_API_KEY': 'gsk-test-groq',
             'XAI_API_KEY': 'xai-test'
         }):
             config = APIConfiguration.from_environment()
             assert config.openai_key == 'sk-test-openai'
             assert config.anthropic_key == 'sk-test-anthropic'
             assert config.google_key == 'test-google'
-            assert config.groq_key == 'gsk-test-groq'
             assert config.xai_key == 'xai-test'
 
     def test_from_environment_with_partial_keys(self):

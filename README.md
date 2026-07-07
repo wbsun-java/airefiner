@@ -1,6 +1,6 @@
 # AIRefiner
 
-A professional AI-powered text processing tool designed to **refine, translate, and improve business communications**. Features clean architecture, dynamic model fetching from 5 AI providers, intelligent model filtering, and automatic language detection with smart task continuity.
+A professional AI-powered text processing tool designed to **refine, translate, and improve business communications**. Features clean architecture, dynamic model fetching from 4 AI providers, intelligent model filtering, and automatic language detection with smart task continuity.
 
 ## Program Objective
 
@@ -15,7 +15,7 @@ The program intelligently manages user workflow by offering previous result impr
 ## Core Features
 
 ### AI Provider Integration
-- **Dynamic Model Fetching**: Real-time model discovery from 5 providers (OpenAI, Google, Anthropic, Groq, xAI)
+- **Dynamic Model Fetching**: Real-time model discovery from 4 providers (OpenAI, Google, Anthropic, xAI)
 - **Intelligent Filtering**: Excludes non-text model types (image, audio, video, embedding, code, moderation, safety models)
 - **Provider-Specific Optimization**: Tailored fetching logic for each provider's API structure
 - **Fallback System**: Graceful degradation when dynamic fetching fails
@@ -61,7 +61,6 @@ airefiner/
 │   ├── openai_provider.py     # OpenAI provider (GPT models)
 │   ├── google_provider.py     # Google provider (Gemini models)
 │   ├── anthropic_provider.py  # Anthropic provider (Claude models)
-│   ├── groq_provider.py       # Groq provider (Llama, Mixtral, Gemma models)
 │   └── xai_provider.py        # xAI/Grok provider with gRPC support
 │
 ├── prompts/                   # Prompt templates
@@ -110,7 +109,6 @@ pip install -r requirements.txt
 ```env
 # Add keys ONLY for the services you have access to
 OPENAI_API_KEY=your_openai_key_here
-GROQ_API_KEY=your_groq_key_here
 GOOGLE_API_KEY=your_google_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
 XAI_API_KEY=your_xai_key_here
@@ -146,7 +144,7 @@ pytest tests/test_error_handler.py
 
 # Integration scripts
 python scripts/test_installation.py       # Verify dependencies
-python scripts/test_providers.py          # Test all 5 AI provider connections
+python scripts/test_providers.py          # Test all 4 AI provider connections
 python scripts/test_auto_translation.py   # Test auto-translation feature
 ```
 
@@ -203,7 +201,6 @@ main.py (Entry Point)
 │   ├── openai_provider.py   - OpenAI GPT models
 │   ├── google_provider.py   - Google Gemini models
 │   ├── anthropic_provider.py - Anthropic Claude models
-│   ├── groq_provider.py     - Groq Llama/Mixtral/Gemma models
 │   └── xai_provider.py      - xAI gRPC + OpenAI-compat fallback
 ├── prompts/ (Prompt Engineering)
 │   ├── refine_prompts.py    - Refinement and presentation templates

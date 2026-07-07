@@ -18,7 +18,7 @@ python3 -m pytest tests/test_app_manager.py
 python3 -m pytest tests/test_app_manager.py::TestTaskProcessor::test_execute_task_success
 
 # Integration scripts (require real API keys in .env)
-python3 scripts/test_providers.py       # test all 5 AI provider connections
+python3 scripts/test_providers.py       # test all 4 AI provider connections
 python3 scripts/test_auto_translation.py
 python3 scripts/test_installation.py    # verify dependencies
 ```
@@ -35,7 +35,7 @@ main.py (AIRefinerApp)
               └── models/*_provider.py  # One file per AI provider
 ```
 
-**Startup flow:** `load_config()` → `app_manager.initialize()` → `model_loader.initialize_models()` → `get_model_definitions()` (fetches from all 5 providers in parallel via `ThreadPoolExecutor`) → main loop.
+**Startup flow:** `load_config()` → `app_manager.initialize()` → `model_loader.initialize_models()` → `get_model_definitions()` (fetches from all 4 providers in parallel via `ThreadPoolExecutor`) → main loop.
 
 **Request flow:** UI collects text → `ApplicationManager.process_text()` → `TaskProcessor.execute_task()` → builds a LangChain chain (`ChatPromptTemplate | model | StrOutputParser`) → invoked through the model's `CircuitBreaker`.
 
@@ -57,7 +57,7 @@ cl
 
 ## Configuration
 
-API keys are loaded from `.env` via `python-dotenv`. Supported variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`. At least one must be set.
+API keys are loaded from `.env` via `python-dotenv`. Supported variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`. At least one must be set.
 
 `config/config_manager.py` holds the `TASKS` dict (maps menu numbers `"1"–"3"` to task dicts) and `_API_KEY_ARG_NAMES` (maps provider names to LangChain constructor argument names). Both must stay in sync with `ModelProvider` enum in `config/constants.py`.
 

@@ -25,7 +25,6 @@ class APIConfiguration:
     openai_key: Optional[str] = None
     anthropic_key: Optional[str] = None
     google_key: Optional[str] = None
-    groq_key: Optional[str] = None
     xai_key: Optional[str] = None
 
     @classmethod
@@ -34,7 +33,6 @@ class APIConfiguration:
             openai_key=os.getenv('OPENAI_API_KEY'),
             anthropic_key=os.getenv('ANTHROPIC_API_KEY'),
             google_key=os.getenv('GOOGLE_API_KEY'),
-            groq_key=os.getenv('GROQ_API_KEY'),
             xai_key=os.getenv('XAI_API_KEY'),
         )
 
@@ -43,7 +41,6 @@ class APIConfiguration:
             ModelProvider.OPENAI.value: self.openai_key,
             ModelProvider.ANTHROPIC.value: self.anthropic_key,
             ModelProvider.GOOGLE.value: self.google_key,
-            ModelProvider.GROQ.value: self.groq_key,
             ModelProvider.XAI.value: self.xai_key,
         }
         return {k: v for k, v in keys.items() if v is not None}
