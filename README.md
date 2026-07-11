@@ -1,36 +1,35 @@
 # AIRefiner
 
-A professional AI-powered text processing tool designed to **refine, translate, and improve business communications**. Features clean architecture, dynamic model fetching from 4 AI providers, intelligent model filtering, and automatic language detection with smart task continuity.
+A console AI-powered text processing tool for **refining, translating, and improving business communications**. Features a clean layered architecture, dynamic model fetching from 4 AI providers (native SDKs), intelligent model filtering, and automatic English ↔ Chinese language detection with task continuity.
 
 ## Program Objective
 
-AIRefiner is a professional text processing tool that serves three main purposes:
+AIRefiner serves three main purposes:
 
 1. **Text Refinement**: Transform informal text into professional, polished communications
-2. **Presentation Enhancement**: Convert basic content into presentation-ready material with proper structure
-3. **Intelligent Translation**: Automatic language detection with bidirectional English <-> Chinese translation
+2. **Presentation Enhancement**: Convert basic content into presentation-ready talking points
+3. **Intelligent Translation**: Automatic language detection with bidirectional English ↔ Chinese translation
 
-The program intelligently manages user workflow by offering previous result improvements only when continuing with the same task type.
+The program offers previous-result improvement only when continuing with the same task type.
 
 ## Core Features
 
 ### AI Provider Integration
-- **Dynamic Model Fetching**: Real-time model discovery from 4 providers (OpenAI, Google, Anthropic, xAI)
+- **Dynamic Model Fetching**: Real-time model discovery from OpenAI, Google, Anthropic, and xAI
+- **Native SDKs**: Official provider packages (`openai`, `google-genai`, `anthropic`, `xai-sdk`) — no LangChain
 - **Intelligent Filtering**: Excludes non-text model types (image, audio, video, embedding, code, moderation, safety models)
-- **Provider-Specific Optimization**: Tailored fetching logic for each provider's API structure
-- **Fallback System**: Graceful degradation when dynamic fetching fails
+- **Fallback System**: Predefined models when dynamic fetching fails
 
-### Professional Architecture
-- **Clean Separation**: UI layer -> Business logic -> Configuration -> Provider integration
-- **State Management**: Intelligent tracking of selected models, tasks, and results
-- **Circuit Breaker Pattern**: Prevents cascade failures in model execution
-- **Error Recovery**: Comprehensive error handling with context-aware messages
+### Architecture
+- **Clean Separation**: UI layer → business logic → configuration → provider integration
+- **State Management**: Tracks selected models, tasks, and last results
+- **Circuit Breaker**: Prevents repeated calls to failing models
+- **Error Recovery**: Context-aware user-facing error messages
 
 ### Smart Translation System
-- **Automatic Detection**: Uses langdetect library for accurate language identification
-- **Confidence Scoring**: Pattern-based confidence calculation for reliability
+- **Automatic Detection**: Uses `langdetect` for language identification
 - **Fallback Logic**: Defaults to text refinement for unsupported languages
-- **Bidirectional Support**: Chinese (Simplified/Traditional) <-> English
+- **Bidirectional Support**: Chinese (Simplified/Traditional) ↔ English
 
 ## Project Structure
 
@@ -42,111 +41,93 @@ airefiner/
 ├── .env                       # API keys (user-created, not in repo)
 │
 ├── config/                    # Configuration management
-│   ├── __init__.py
 │   ├── constants.py           # Application constants, enums, filtering rules
-│   └── config_manager.py      # Centralized configuration with validation
+│   └── config_manager.py      # API keys, tasks, validation
 │
 ├── core/                      # Business logic layer
-│   ├── __init__.py
-│   └── app_manager.py         # Application state, task processing, workflow control
+│   └── app_manager.py         # ApplicationManager + TaskProcessor
 │
 ├── ui/                        # User interface layer
-│   ├── __init__.py
 │   └── console_interface.py   # Console UI with grouped model display
 │
 ├── models/                    # AI model management
-│   ├── __init__.py
-│   ├── model_loader.py        # Orchestrator: filtering, caching, initialization
-│   ├── base_model_provider.py # Abstract base class for model providers
-│   ├── openai_provider.py     # OpenAI provider (GPT models)
-│   ├── google_provider.py     # Google provider (Gemini models)
-│   ├── anthropic_provider.py  # Anthropic provider (Claude models)
-│   └── xai_provider.py        # xAI/Grok provider with gRPC support
+│   ├── model_loader.py        # Orchestrator: fetch, cache, initialize
+│   ├── base_model_provider.py # Abstract base class for providers
+│   ├── openai_provider.py     # OpenAI (GPT)
+│   ├── google_provider.py     # Google (Gemini)
+│   ├── anthropic_provider.py  # Anthropic (Claude)
+│   ├── xai_provider.py        # xAI (Grok via xai-sdk)
+│   └── model_filter.py        # Text-model filtering and deduplication
 │
 ├── prompts/                   # Prompt templates
-│   ├── __init__.py
 │   ├── refine_prompts.py      # Text refinement and presentation prompts
-│   └── translate_prompts.py   # Translation prompts (EN<->ZH)
+│   └── translate_prompts.py   # Translation prompts (EN ↔ ZH)
 │
-├── utils/                     # Utility functions
-│   ├── __init__.py
+├── utils/                     # Shared helpers
 │   ├── input_helpers.py       # Multi-line input handling
-│   ├── translation_handler.py # Language detection and auto-translation logic
-│   ├── logger.py              # Structured console logging with color support
-│   └── error_handler.py       # Error classes, circuit breaker, retry logic
+│   ├── translation_handler.py # Language detection and auto-translation
+│   ├── logger.py              # Structured console logging
+│   └── error_handler.py       # Exceptions, circuit breaker
 │
 ├── tests/                     # Unit tests (pytest)
-│   ├── __init__.py
-│   ├── conftest.py            # Test fixtures and configuration
-│   ├── test_app_manager.py    # Business logic tests
-│   ├── test_config_manager.py # Configuration management tests
-│   └── test_error_handler.py  # Error handling and circuit breaker tests
+│   ├── conftest.py
+│   ├── test_app_manager.py
+│   ├── test_base_model_provider.py
+│   ├── test_config_manager.py
+│   └── test_error_handler.py
 │
-├── scripts/                   # Development and debugging utilities
-│   ├── test_runner.py         # Run all integration scripts in sequence
-│   ├── test_installation.py   # Verify dependencies are installed
-│   ├── test_providers.py      # Test all AI provider connections
-│   ├── test_auto_translation.py # Test auto-translation feature
-│   ├── demo_dynamic_fetching.py # Demo dynamic model fetching
-│   ├── debug_langdetect.py    # Debug language detection issues
-│   └── check_langdetect_contents.py # Inspect langdetect package contents
-│
-└── docs/                      # Documentation
-    ├── CONFIGURATION.md       # Setup and configuration guide
-    └── PROJECT_STRUCTURE.md   # Detailed structure explanation
+└── docs/                      # Design notes and plans
+    └── superpowers/           # Specs and implementation plans
 ```
 
 ## Installation
 
-### 1. Install dependencies:
+### 1. Create a virtual environment and install dependencies
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Create `.env` file with your API keys:
+### 2. Create a `.env` file with your API keys
 
 ```env
-# Add keys ONLY for the services you have access to
+# Add keys ONLY for the services you have access to (at least one required)
 OPENAI_API_KEY=your_openai_key_here
 GOOGLE_API_KEY=your_google_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
 XAI_API_KEY=your_xai_key_here
 ```
 
-### 3. Verify installation:
+### 3. Verify with unit tests
 
 ```bash
-python scripts/test_installation.py
+python3 -m pytest tests/
 ```
 
 ## Usage
 
-### Run the application:
+### Run the application
 
 ```bash
-python main.py
+python3 main.py
 ```
 
-### Run all integration tests:
+### Run tests
 
 ```bash
-python scripts/test_runner.py
+# Full unit suite
+python3 -m pytest tests/
+
+# Single file
+python3 -m pytest tests/test_app_manager.py
+
+# Single test
+python3 -m pytest tests/test_app_manager.py::TestTaskProcessor::test_execute_task_success
 ```
 
-### Run specific tests:
-
-```bash
-# Unit tests (via pytest)
-pytest tests/test_app_manager.py
-pytest tests/test_config_manager.py
-pytest tests/test_error_handler.py
-
-# Integration scripts
-python scripts/test_installation.py       # Verify dependencies
-python scripts/test_providers.py          # Test all 4 AI provider connections
-python scripts/test_auto_translation.py   # Test auto-translation feature
-```
+Live provider calls require real API keys in `.env` and are not part of the default unit suite.
 
 ## Available Tasks
 
@@ -158,15 +139,15 @@ Convert basic content into presentation-ready talking points with professional s
 
 ### 3. Intelligent Auto-Translation
 Automatic language detection with intelligent translation direction:
-- English detected -> Translate to Simplified Chinese
-- Chinese detected -> Translate to English
-- Other/Low confidence -> Fallback to Text Refinement
+- English detected → Translate to Simplified Chinese
+- Chinese detected → Translate to English
+- Other / unknown → Fallback to Text Refinement
 
 ## Configuration
 
 ### API Keys
 
-Set API keys via environment variables or a `.env` file in the project root. Only keys for services you use are required. See `docs/CONFIGURATION.md` for details.
+Set API keys via environment variables or a `.env` file in the project root. Only keys for services you use are required. At least one must be set.
 
 ### Model Filtering
 
@@ -174,65 +155,50 @@ The system automatically filters out non-text models (image, audio, video, embed
 
 ### Logging
 
-- Console-only logging (no log files)
-- Color-coded output with Windows Unicode safety
-- Log level configurable via `LOG_LEVEL` environment variable
+- Console-only logging (no log files by default)
+- Color-coded output with Windows Unicode safety for emoji
 
 ## Architecture Overview
 
 ```
-main.py (Entry Point)
-├── ui/console_interface.py (UI Layer)
-│   ├── MenuManager         - Menu display and user input
-│   ├── ModelSelector        - Grouped model selection by provider
-│   ├── TaskSelector         - Task selection with workflow management
-│   └── InputHandler         - Multi-line input with task continuity
-├── core/app_manager.py (Business Logic Layer)
-│   ├── ApplicationManager   - Main coordinator and workflow control
-│   ├── ModelManager          - Model lifecycle with circuit breakers
-│   ├── TaskProcessor         - Task execution with error handling
-│   └── AppState              - State tracking (model, task, results)
-├── config/ (Configuration Layer)
-│   ├── config_manager.py    - API keys, validation, environment loading
-│   └── constants.py         - Enums, filtering rules, thresholds
-├── models/ (Provider Integration Layer)
-│   ├── model_loader.py      - Orchestrator: filtering, caching, initialization
-│   ├── base_model_provider.py - Abstract base for providers
-│   ├── openai_provider.py   - OpenAI GPT models
-│   ├── google_provider.py   - Google Gemini models
-│   ├── anthropic_provider.py - Anthropic Claude models
-│   └── xai_provider.py      - xAI gRPC + OpenAI-compat fallback
-├── prompts/ (Prompt Engineering)
-│   ├── refine_prompts.py    - Refinement and presentation templates
-│   └── translate_prompts.py - EN<->ZH translation templates
-└── utils/ (Utilities)
-    ├── logger.py              - Singleton logger, console-only, color formatting
-    ├── error_handler.py       - Custom exceptions, circuit breaker, retry
-    ├── translation_handler.py - Language detection, confidence scoring
-    └── input_helpers.py       - Multi-line input collection
+main.py (AIRefinerApp)
+  └── ui/console_interface.py      # All user I/O — no business logic
+  └── core/app_manager.py          # ApplicationManager + TaskProcessor — no I/O
+        └── models/model_loader.py # Provider loading + caching
+              └── models/*_provider.py
 ```
+
+**Startup:** `load_config()` → `app_manager.initialize()` → `model_loader.initialize_models()` → `get_model_definitions()` (fetches from all 4 providers in parallel) → main loop.
+
+**Request:** UI collects text → `ApplicationManager.process_text()` → `TaskProcessor.execute_task()` → formats prompt with `{user_text}` → invokes model `Callable[[str], str]` through a per-model `CircuitBreaker`.
+
+Each provider implements `fetch_models()`, `get_fallback_models()`, and `build_callable(model_id, api_key) -> Callable[[str], str]`. Model keys use the format `"{provider}/{display_name}"` (e.g. `"anthropic/Claude Sonnet 4"`).
 
 ## Troubleshooting
 
-### Language Detection Issues:
+### Configuration / missing API keys
+
 ```bash
-python scripts/debug_langdetect.py
-python scripts/check_langdetect_contents.py
+python3 -m pytest tests/test_config_manager.py
 ```
 
-### Missing Dependencies:
+Ensure at least one of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, or `XAI_API_KEY` is set in `.env`.
+
+### Dependencies
+
 ```bash
-python scripts/test_installation.py
+pip install -r requirements.txt
+python3 -m pytest tests/
 ```
 
-### Configuration Issues:
-```bash
-pytest tests/test_config_manager.py
-```
+### Language detection
+
+Auto-translation uses `langdetect`. If detection is wrong for short or mixed-language text, try longer samples or use the refine task instead.
 
 ## Quick Start
 
-1. `pip install -r requirements.txt`
-2. Add API keys to `.env` file
-3. `python scripts/test_installation.py` to verify
-4. `python main.py` to run
+1. `python3 -m venv .venv && source .venv/bin/activate`
+2. `pip install -r requirements.txt`
+3. Add at least one API key to `.env`
+4. `python3 -m pytest tests/` to verify
+5. `python3 main.py` to run

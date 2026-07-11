@@ -14,9 +14,6 @@ python3 -m pytest tests/test_app_manager.py
 
 # Run a single test
 python3 -m pytest tests/test_app_manager.py::TestTaskProcessor::test_execute_task_success
-
-# Integration scripts (require real API keys in .env)
-python3 scripts/test_providers.py       # test all 5 AI provider connections
-python3 scripts/test_auto_translation.py
-python3 scripts/test_installation.py    # verify dependencies
 ```
+
+Live provider calls require real API keys in `.env` and are not part of the default unit suite.

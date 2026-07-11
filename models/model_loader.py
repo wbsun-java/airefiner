@@ -35,8 +35,8 @@ def get_model_definitions() -> Dict[str, list]:
     Falls back to predefined models when API calls fail.
 
     The cache is unused during normal app startup (initialize_models calls
-    this once). It benefits scripts/tools that call this function repeatedly
-    in a single process (e.g. scripts/test_providers.py).
+    this once). It benefits tools or tests that call this function repeatedly
+    in a single process.
     """
     global _model_cache, _cache_timestamp
 

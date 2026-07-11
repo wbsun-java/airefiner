@@ -12,6 +12,6 @@ main.py (AIRefinerApp)
               └── models/*_provider.py  # One file per AI provider
 ```
 
-**Startup flow:** `load_config()` → `app_manager.initialize()` → `model_loader.initialize_models()` → `get_model_definitions()` (fetches from all 5 providers in parallel via `ThreadPoolExecutor`) → main loop.
+**Startup flow:** `load_config()` → `app_manager.initialize()` → `model_loader.initialize_models()` → `get_model_definitions()` (fetches from all 4 providers in parallel via `ThreadPoolExecutor`) → main loop.
 
-**Request flow:** UI collects text → `ApplicationManager.process_text()` → `TaskProcessor.execute_task()` → builds a LangChain chain (`ChatPromptTemplate | model | StrOutputParser`) → invoked through the model's `CircuitBreaker`.
+**Request flow:** UI collects text → `ApplicationManager.process_text()` → `TaskProcessor.execute_task()` → formats the task prompt with `{user_text}` → invokes the model `Callable[[str], str]` through the model's `CircuitBreaker`.
