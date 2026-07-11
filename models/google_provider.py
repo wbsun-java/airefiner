@@ -5,14 +5,11 @@ Google Gemini model provider - fetches and manages Google AI models.
 import time
 from typing import List, Dict, Any, Callable
 
+from google import genai
+
 from models.base_model_provider import BaseModelProvider
 from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info, warning
-
-try:
-    from google import genai
-except ImportError:
-    genai = None
 
 
 class GoogleModelProvider(BaseModelProvider):
@@ -35,9 +32,6 @@ class GoogleModelProvider(BaseModelProvider):
         return call
 
     def _do_fetch_models(self) -> List[Dict[str, Any]]:
-        if genai is None:
-            raise ImportError("google-genai package not available")
-
         client = genai.Client(api_key=self.api_key)
 
         max_retries = 3

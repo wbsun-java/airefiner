@@ -6,5 +6,4 @@ xai-sdk>=1.11.0
 
 # Utilities
 python-dotenv>=1.2.2
-requests>=2.33.0
 langdetect>=1.0.9

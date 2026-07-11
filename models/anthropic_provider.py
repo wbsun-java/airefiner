@@ -4,14 +4,11 @@ Anthropic model provider - fetches and manages Anthropic Claude models.
 
 from typing import List, Dict, Any, Callable
 
+import anthropic
+
 from models.base_model_provider import BaseModelProvider
 from models.model_filter import is_text_model, deduplicate_models
 from utils.logger import info
-
-try:
-    import anthropic as anthropic_sdk
-except ImportError:
-    anthropic_sdk = None
 
 
 class AnthropicModelProvider(BaseModelProvider):
@@ -20,7 +17,7 @@ class AnthropicModelProvider(BaseModelProvider):
         super().__init__(api_key, provider_name)
 
     def build_callable(self, model_id: str, api_key: str) -> Callable[[str], str]:
-        client = anthropic_sdk.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key)
         temperature = self.default_temperature
 
         def call(prompt: str) -> str:
@@ -35,10 +32,7 @@ class AnthropicModelProvider(BaseModelProvider):
         return call
 
     def _do_fetch_models(self) -> List[Dict[str, Any]]:
-        if anthropic_sdk is None:
-            raise ImportError("anthropic package not available")
-
-        client = anthropic_sdk.Anthropic(api_key=self.api_key)
+        client = anthropic.Anthropic(api_key=self.api_key)
         models_page = client.models.list()
 
         model_names = {}
