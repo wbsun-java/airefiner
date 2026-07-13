@@ -77,6 +77,10 @@ class LoggerMixin:
 
 
 # Convenience functions for direct usage
+def debug(message: str, *args, **kwargs):
+    _log.debug(message, *args, **kwargs)
+
+
 def info(message: str, *args, **kwargs):
     _log.info(message, *args, **kwargs)
 

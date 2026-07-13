@@ -6,7 +6,7 @@ import re
 from typing import List, Dict
 
 from config.constants import ModelFiltering
-from utils.logger import info
+from utils.logger import debug
 
 # Matches YYYY-MM-DD or 4-digit MMDD date suffixes, optionally followed by a word like -preview
 # e.g. gpt-4o-2024-11-20, gpt-3.5-turbo-1106, gpt-4-0125-preview, kimi-k2-instruct-0905
@@ -55,13 +55,13 @@ def is_text_model(model_id: str, provider: str = "") -> bool:
 
     for keyword in ModelFiltering.NON_TEXT_KEYWORDS:
         if keyword in model_id_lower:
-            info(f"🔎 Filtering out non-text model ({keyword}): {model_id}")
+            debug(f"🔎 Filtering out non-text model ({keyword}): {model_id}")
             return False
 
     if provider and provider in ModelFiltering.PROVIDER_EXCLUSIONS:
         for excluded in ModelFiltering.PROVIDER_EXCLUSIONS[provider]:
             if excluded.lower() in model_id_lower:
-                info(f"🔎 Filtering out provider-specific non-text model: {model_id}")
+                debug(f"🔎 Filtering out provider-specific non-text model: {model_id}")
                 return False
 
     return True

@@ -100,6 +100,13 @@ class AIRefinerApp(LoggerMixin):
         self.ui.display_result(result)
 
     def _handle_post_processing(self) -> bool:
+        """
+        Handle post-processing options (refine further, save, etc.).
+        
+        Returns:
+            True to continue with current selections, False to reset to main menu
+        """
+        # Check if user can refine further (now available for all tasks)py
         if self.app_manager.should_refine_further():
             return self.ui.get_refine_choice()
         return False
