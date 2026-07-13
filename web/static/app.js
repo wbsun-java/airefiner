@@ -63,12 +63,12 @@ function setStatus(text, state) {
 
 function showError(msg) {
   errorMessage.textContent = msg;
-  errorBanner.style.display = 'flex';
-  outputSection.style.display = 'none';
+  errorBanner.hidden = false;
+  outputSection.hidden = true;
 }
 
 function hideError() {
-  errorBanner.style.display = 'none';
+  errorBanner.hidden = true;
   errorMessage.textContent = '';
 }
 
@@ -405,7 +405,6 @@ inputText.addEventListener('keydown', (e) => {
    Init
    ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
-  // Ensure banner is hidden on load (CSS display:flex overrides [hidden])
   hideError();
   loadStatus();
 });

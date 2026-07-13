@@ -611,6 +611,8 @@ body {
 .process-meta { font-size: 0.8rem; color: var(--text-muted); }
 
 /* ---------- Output ---------- */
+[hidden] { display: none !important; }
+
 .output-actions { display: flex; gap: 8px; }
 
 .editor-output {
