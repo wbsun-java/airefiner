@@ -7,3 +7,6 @@ xai-sdk>=1.11.0
 # Utilities
 python-dotenv>=1.2.2
 langdetect>=1.0.9
+
+# Web server (for `python web_main.py` — not needed for CLI mode)
+flask>=3.0.0
