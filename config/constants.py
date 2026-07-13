@@ -11,7 +11,6 @@ class ModelProvider(Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
-    GROQ = "groq"
     XAI = "xai"
 
 
@@ -47,7 +46,6 @@ class ModelFiltering:
         ModelProvider.OPENAI.value: ['davinci-edit', 'curie-edit', 'babbage-edit', 'ada-edit', 'o1-pro'],
         ModelProvider.GOOGLE.value: ['bison', 'gecko', 'otter', 'unicorn', 'computer-use'],
         ModelProvider.ANTHROPIC.value: [],
-        ModelProvider.GROQ.value: ['whisper', 'distil-whisper'],
         ModelProvider.XAI.value: [],
     }
 

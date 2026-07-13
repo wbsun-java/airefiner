@@ -17,7 +17,6 @@ _PROVIDER_REGISTRY = {
     "openai": ("models.openai_provider", "OpenAIModelProvider"),
     "google": ("models.google_provider", "GoogleModelProvider"),
     "anthropic": ("models.anthropic_provider", "AnthropicModelProvider"),
-    "groq": ("models.groq_provider", "GroqModelProvider"),
     "xai": ("models.xai_provider", "XAIModelProvider"),
 }
 
